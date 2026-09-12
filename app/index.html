@@ -617,7 +617,6 @@ async function renderClientServicePage(serviceId) {
   listEl.querySelectorAll('[data-approve]').forEach(btn => btn.addEventListener('click', async () => {
     const { error } = await sb.from('drafts').update({ status: 'approved_by_client' }).eq('id', btn.dataset.approve);
     if (error) { alert('تعذر الاعتماد: ' + error.message); return; }
-    await sb.from('requests').update({ status: 'completed' }).eq('id', btn.dataset.req);
     renderClientServicePage(serviceId);
   }));
   listEl.querySelectorAll('[data-revise]').forEach(btn => btn.addEventListener('click', () => { document.getElementById(`rev-form-${btn.dataset.revise}`).style.display = 'block'; }));
@@ -625,7 +624,6 @@ async function renderClientServicePage(serviceId) {
     const notes = document.getElementById(`rev-notes-${btn.dataset.sendRevision}`).value.trim();
     const { error } = await sb.from('drafts').update({ status: 'client_revision_requested', client_notes: notes }).eq('id', btn.dataset.sendRevision);
     if (error) { alert('تعذر إرسال طلب التعديل: ' + error.message); return; }
-    await sb.from('requests').update({ status: 'client_revision_requested' }).eq('id', btn.dataset.req);
     renderClientServicePage(serviceId);
   }));
 }
@@ -835,6 +833,8 @@ async function renderStaffTasks() {
 
   async function renderOneTaskCard(r, listEl) {
     const { data: openTimer } = await sb.from('task_timer_logs').select('*').eq('request_id', r.id).eq('staff_id', CURRENT_USER.id).is('ended_at', null).maybeSingle();
+    const { data: latestDraftArr } = await sb.from('drafts').select('*').eq('request_id', r.id).order('version', { ascending: false }).limit(1);
+    const latestDraft = (latestDraftArr || [])[0];
     const attachHtml = await attachmentsHtml(r.id);
     const card = document.createElement('div');
     card.className = `card ${priorityCardClass(r.priority)}`;
@@ -849,6 +849,12 @@ async function renderStaffTasks() {
       </div>
       ${progressBarHtml(r.status)}
       ${r.description ? `<p class="req-meta" style="margin-top:.5rem">${r.description}</p>` : ''}
+      ${latestDraft && latestDraft.status === 'client_revision_requested' ? `
+        <div class="msg err" style="margin-top:.7rem"><strong>طلب العميل تعديل (نسخة ${latestDraft.version}):</strong><br>${latestDraft.client_notes || 'بدون ملاحظات مكتوبة'}</div>
+      ` : ''}
+      ${latestDraft && latestDraft.status === 'rejected_by_admin' ? `
+        <div class="msg err" style="margin-top:.7rem"><strong>ملاحظات المدير على النسخة ${latestDraft.version}:</strong><br>${latestDraft.admin_notes || 'بدون ملاحظات مكتوبة'}</div>
+      ` : ''}
       ${attachHtml}
       <div style="margin-top:.8rem">
         ${!openTimer ? `<button class="btn btn-g btn-sm" data-start="${r.id}">بدء التنفيذ ←</button>`
