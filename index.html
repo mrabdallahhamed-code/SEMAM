@@ -39,7 +39,7 @@
 </head>
 <body>
   <div class="card">
-    <div class="logo-wrap"><img src="assets/logo.png" alt="صمام"></div>
+    <div class="logo-wrap"><img src="/assets/logo.png" alt="صمام"></div>
     <h1>بوابة صمام التشغيلية</h1>
     <p class="sub">من إتقان لخدمات الأعمال</p>
 
@@ -131,7 +131,7 @@
 
   (async () => {
     const { data: { session } } = await sb.auth.getSession();
-    if (session) window.location.href = 'app.html';
+    if (session) window.location.href = '/app/';
   })();
 
   signinForm.addEventListener('submit', async (e) => {
@@ -144,7 +144,7 @@
     const { error } = await sb.auth.signInWithPassword({ email, password });
     btn.disabled = false; btn.textContent = 'دخول ←';
     if (error) { showMsg('فشل تسجيل الدخول: تأكد من البريد وكلمة المرور.', 'err'); }
-    else { window.location.href = 'app.html'; }
+    else { window.location.href = '/app/'; }
   });
 
   // ---- Sign up: creates the auth user, then stashes company info so
@@ -182,7 +182,7 @@
     if (data.user && !data.session) {
       showMsg('تم إنشاء الحساب! تحقق من بريدك الإلكتروني لتأكيد الحساب قبل الدخول.', 'ok');
     } else {
-      window.location.href = 'app.html';
+      window.location.href = '/app/';
     }
   });
 </script>

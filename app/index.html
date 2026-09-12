@@ -138,7 +138,7 @@
 
 <div class="shell">
   <aside class="sidebar" id="sidebar">
-    <div class="sb-brand"><img src="assets/logo.png" alt="صمام"><div><div class="n">صمام</div><div class="r">من إتقان</div></div></div>
+    <div class="sb-brand"><img src="/assets/logo.png" alt="صمام"><div><div class="n">صمام</div><div class="r">من إتقان</div></div></div>
     <nav class="sb-nav" id="sbNav"></nav>
     <div class="sb-foot">
       <div class="sb-who" id="whoami">...</div>
@@ -149,7 +149,7 @@
   <div class="main">
     <div class="topbar">
       <button class="hamburger" id="hamburger">☰</button>
-      <img src="assets/logo.png" alt="صمام" style="width:28px">
+      <img src="/assets/logo.png" alt="صمام" style="width:28px">
     </div>
     <div class="main-top">
       <div class="page-title" id="pageTitle">لوحة التحكم</div>
@@ -194,7 +194,7 @@ let rerenderTimeout = null;
 
 async function init() {
   const { data: { session } } = await sb.auth.getSession();
-  if (!session) { window.location.href = 'index.html'; return; }
+  if (!session) { window.location.href = '/'; return; }
   CURRENT_USER = session.user;
 
   const { data: profile, error } = await sb.from('profiles').select('*').eq('id', CURRENT_USER.id).single();
@@ -262,7 +262,7 @@ function progressBarHtml(status) {
 }
 
 function setupChrome() {
-  document.getElementById('logoutBtn').addEventListener('click', async () => { await sb.auth.signOut(); window.location.href = 'index.html'; });
+  document.getElementById('logoutBtn').addEventListener('click', async () => { await sb.auth.signOut(); window.location.href = '/'; });
   document.getElementById('hamburger').addEventListener('click', () => document.getElementById('sidebar').classList.toggle('open'));
   const bellBtn = document.getElementById('bellBtn'), panel = document.getElementById('notifPanel');
   bellBtn.addEventListener('click', () => panel.classList.toggle('open'));
