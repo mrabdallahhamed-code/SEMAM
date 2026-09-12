@@ -253,6 +253,7 @@ function statusBadge(s) {
   return `<span class="badge ${cls}">${displayLabel}</span>`;
 }
 function fmtDate(d) { return new Date(d).toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' }); }
+function fmtDateTime(d) { return new Date(d).toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
 function fmtDuration(sec) { if (!sec) return '—'; const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60); return h>0 ? `${h}س ${m}د` : `${m}د`; }
 function timeAgo(d) {
   const diff = (Date.now() - new Date(d).getTime())/1000;
@@ -454,6 +455,57 @@ async function attachmentsHtml(requestId) {
   return links.join('');
 }
 
+function timestampsHtml(r) {
+  if (!r.started_at && !r.completed_at) return '';
+  let parts = [];
+  if (r.started_at) parts.push(`بدأ التنفيذ: ${fmtDateTime(r.started_at)}`);
+  if (r.completed_at) parts.push(`اكتمل: ${fmtDateTime(r.completed_at)}`);
+  return `<div class="req-meta" style="margin-top:.4rem">🕐 ${parts.join(' · ')}</div>`;
+}
+
+async function finalFileHtml(r) {
+  if (!r.final_file_path) return '';
+  const { data } = await sb.storage.from('final-documents').createSignedUrl(r.final_file_path, 3600);
+  return `<div class="msg ok" style="margin-top:.6rem">📄 <a href="${data?.signedUrl || '#'}" target="_blank" style="color:inherit;text-decoration:underline">تحميل الملف النهائي المعتمد</a></div>`;
+}
+
+async function draftFileLinkHtml(draft) {
+  if (!draft.file_path) return `<div class="req-meta">📝 حُدد كمنفَّذ بدون ملف مرفق</div>`;
+  const { data } = await sb.storage.from('drafts').createSignedUrl(draft.file_path, 3600);
+  return data?.signedUrl ? `<a class="attach-link" href="${data.signedUrl}" target="_blank">📎 عرض/تحميل ملف المسودة</a>` : '';
+}
+
+// ---- Inquiries thread (staff asks, client/admin answers) ----
+async function inquiriesHtml(requestId, viewerRole) {
+  const { data: inquiries } = await sb.from('request_inquiries').select('*, profiles!request_inquiries_asked_by_fkey(full_name)').eq('request_id', requestId).order('created_at', { ascending: false });
+  if (!inquiries || inquiries.length === 0) return '';
+  return inquiries.map(q => `
+    <div class="card" style="background:var(--off);margin-top:.6rem;padding:.9rem">
+      <div class="req-meta" style="font-weight:700;color:var(--t)">❓ استفسار من ${q.profiles?.full_name || 'الموظف'}:</div>
+      <div class="req-meta" style="margin-top:.3rem">${q.question}</div>
+      ${q.answer ? `
+        <div class="req-meta" style="font-weight:700;color:var(--t);margin-top:.6rem">↩️ الرد:</div>
+        <div class="req-meta" style="margin-top:.2rem">${q.answer}</div>
+      ` : (viewerRole === 'client' || viewerRole === 'admin') ? `
+        <div style="margin-top:.6rem">
+          <textarea id="answer-${q.id}" placeholder="اكتب ردك هنا..."></textarea>
+          <button class="btn btn-g btn-sm" style="margin-top:.5rem" data-answer-inquiry="${q.id}">إرسال الرد ←</button>
+        </div>
+        <div id="answer-msg-${q.id}"></div>
+      ` : `<div class="badge b-progress" style="margin-top:.5rem">بانتظار رد العميل</div>`}
+    </div>
+  `).join('');
+}
+function wireInquiryAnswerButtons(container, onDone) {
+  container.querySelectorAll('[data-answer-inquiry]').forEach(btn => btn.addEventListener('click', async () => {
+    const id = btn.dataset.answerInquiry;
+    const answer = document.getElementById(`answer-${id}`).value.trim();
+    if (!answer) return;
+    const ok = await runOrAlert(sb.from('request_inquiries').update({ answer }).eq('id', id), 'تعذر إرسال الرد');
+    if (ok && onDone) onDone();
+  }));
+}
+
 function uploadWidgetHtml(idPrefix) {
   return `
     <div class="dropzone" id="${idPrefix}-dropzone">
@@ -600,6 +652,9 @@ async function renderClientServicePage(serviceId) {
     const visibleDraft = (drafts || [])[0];
     const { data: openTimer } = await sb.from('task_timer_logs').select('*').eq('request_id', r.id).is('ended_at', null).maybeSingle();
     const attachHtml = await attachmentsHtml(r.id);
+    const finalHtml = await finalFileHtml(r);
+    const inqHtml = await inquiriesHtml(r.id, 'client');
+    const draftLinkHtml = visibleDraft ? await draftFileLinkHtml(visibleDraft) : '';
 
     const card = document.createElement('div');
     card.className = `card ${priorityCardClass(r.priority)}`;
@@ -609,10 +664,14 @@ async function renderClientServicePage(serviceId) {
         <div style="display:flex;gap:.5rem;align-items:center">${openTimer ? `<span class="live-pill"><span class="live-dot"></span>الموظف يعمل الآن</span>` : ''}${statusBadge(r.status)}</div>
       </div>
       ${progressBarHtml(r.status)}
+      ${timestampsHtml(r)}
       ${attachHtml}
+      ${inqHtml}
+      ${finalHtml}
       ${visibleDraft ? `
         <div class="draft-item">
           <div class="req-meta" style="margin-bottom:.5rem">مسودة النسخة ${visibleDraft.version} — ${statusBadge(visibleDraft.status)}</div>
+          <div style="margin-bottom:.5rem">${draftLinkHtml}</div>
           ${visibleDraft.status === 'approved_for_client' ? `
             <div style="display:flex;gap:.5rem">
               <button class="btn btn-g btn-sm" data-approve="${visibleDraft.id}" data-req="${r.id}">اعتماد ←</button>
@@ -625,6 +684,7 @@ async function renderClientServicePage(serviceId) {
         </div>` : ''}
     `;
     listEl.appendChild(card);
+    wireInquiryAnswerButtons(card, () => renderClientServicePage(serviceId));
   }
   listEl.querySelectorAll('[data-approve]').forEach(btn => btn.addEventListener('click', async () => {
     const { error } = await sb.from('drafts').update({ status: 'approved_by_client' }).eq('id', btn.dataset.approve);
@@ -848,6 +908,8 @@ async function renderStaffTasks() {
     const { data: latestDraftArr } = await sb.from('drafts').select('*').eq('request_id', r.id).order('version', { ascending: false }).limit(1);
     const latestDraft = (latestDraftArr || [])[0];
     const attachHtml = await attachmentsHtml(r.id);
+    const finalHtml = await finalFileHtml(r);
+    const inqHtml = await inquiriesHtml(r.id, 'staff');
     const card = document.createElement('div');
     card.className = `card ${priorityCardClass(r.priority)}`;
     card.innerHTML = `
@@ -860,6 +922,7 @@ async function renderStaffTasks() {
         ${statusBadge(r.status)}
       </div>
       ${progressBarHtml(r.status)}
+      ${timestampsHtml(r)}
       ${r.description ? `<p class="req-meta" style="margin-top:.5rem">${r.description}</p>` : ''}
       ${latestDraft && latestDraft.status === 'client_revision_requested' ? `
         <div class="msg err" style="margin-top:.7rem"><strong>طلب العميل تعديل (نسخة ${latestDraft.version}):</strong><br>${latestDraft.client_notes || 'بدون ملاحظات مكتوبة'}</div>
@@ -868,20 +931,41 @@ async function renderStaffTasks() {
         <div class="msg err" style="margin-top:.7rem"><strong>ملاحظات المدير على النسخة ${latestDraft.version}:</strong><br>${latestDraft.admin_notes || 'بدون ملاحظات مكتوبة'}</div>
       ` : ''}
       ${attachHtml}
-      <div style="margin-top:.8rem">
+      ${inqHtml}
+      ${finalHtml}
+      <div style="margin-top:.8rem;display:flex;gap:.5rem;flex-wrap:wrap">
         ${!openTimer ? `<button class="btn btn-g btn-sm" data-start="${r.id}">بدء التنفيذ ←</button>`
                      : `<span class="live-pill"><span class="live-dot"></span>يعمل الآن</span> <button class="btn btn-danger btn-sm" data-stop="${openTimer.id}" data-req="${r.id}">إنهاء الجلسة</button>`}
+        <button class="btn btn-o btn-sm" data-ask-toggle="${r.id}">❓ طرح استفسار</button>
+      </div>
+      <div id="ask-form-${r.id}" style="display:none;margin-top:.7rem;border-top:1px solid var(--bd);padding-top:.7rem">
+        <textarea id="ask-text-${r.id}" placeholder="مثال: أحتاج دخول لمنصة قوى لإتمام الطلب، أو أي استفسار للعميل..."></textarea>
+        <button class="btn btn-g btn-sm" style="margin-top:.5rem" data-send-ask="${r.id}">إرسال الاستفسار ←</button>
+        <div id="ask-msg-${r.id}"></div>
       </div>
       <div style="margin-top:.9rem;border-top:1px solid var(--bd);padding-top:.9rem">
-        <label>رفع مسودة / ملاحظات (متاح دائمًا)</label>
+        <label>رفع مسودة / ملف عمل (متاح دائمًا)</label>
         ${uploadWidgetHtml('draft-'+r.id)}
-        <button class="btn btn-o btn-sm" style="margin-top:.6rem" data-submit-draft="${r.id}">رفع كمسودة ←</button>
+        <div style="display:flex;gap:.5rem;margin-top:.6rem;flex-wrap:wrap">
+          <button class="btn btn-o btn-sm" data-submit-draft="${r.id}">رفع كمسودة ←</button>
+          <button class="btn btn-o btn-sm" data-mark-done="${r.id}">تحديد كمنفَّذ بدون ملف ←</button>
+        </div>
       </div>
       <div id="draft-msg-${r.id}"></div>
+      ${r.status === 'completed' && !r.final_file_path ? `
+        <div style="margin-top:.9rem;border-top:1px solid var(--bd);padding-top:.9rem">
+          <label>📄 رفع الملف النهائي المعتمد</label>
+          ${uploadWidgetHtml('final-'+r.id)}
+          <button class="btn btn-g btn-sm" style="margin-top:.6rem" data-submit-final="${r.id}">رفع الملف النهائي ←</button>
+          <div id="final-msg-${r.id}"></div>
+        </div>
+      ` : ''}
     `;
     listEl.appendChild(card);
     wireUploadWidgetPreview('draft-'+r.id);
+    if (r.status === 'completed' && !r.final_file_path) wireUploadWidgetPreview('final-'+r.id);
     wireOneTaskCardEvents(card);
+    wireInquiryAnswerButtons(card, () => renderStaffTasks());
   }
 
   function wireOneTaskCardEvents(card) {
@@ -916,6 +1000,46 @@ async function renderStaffTasks() {
       const { error: reqErr } = await sb.from('requests').update({ status: 'pending_admin_review' }).eq('id', reqId);
       if (reqErr) { msgEl.innerHTML = `<div class="msg err">تم رفع الملف لكن فشل تحديث حالة الطلب: ${reqErr.message}</div>`; return; }
       msgEl.innerHTML = `<div class="msg ok">تم رفع المسودة، بانتظار مراجعة المدير.</div>`;
+    }));
+
+    card.querySelectorAll('[data-mark-done]').forEach(btn => btn.addEventListener('click', async () => {
+      const reqId = btn.dataset.markDone;
+      const msgEl = document.getElementById(`draft-msg-${reqId}`);
+      const { data: existing } = await sb.from('drafts').select('version').eq('request_id', reqId).order('version', { ascending: false }).limit(1);
+      const nextVersion = existing && existing[0] ? existing[0].version + 1 : 1;
+      const okInsert = await runOrAlert(sb.from('drafts').insert({ request_id: reqId, version: nextVersion, file_path: null, submitted_by: CURRENT_USER.id }), 'تعذر تسجيل الإنجاز');
+      if (!okInsert) return;
+      const okUpdate = await runOrAlert(sb.from('requests').update({ status: 'pending_admin_review' }).eq('id', reqId), 'تم التسجيل لكن فشل تحديث حالة الطلب');
+      if (!okUpdate) return;
+      msgEl.innerHTML = `<div class="msg ok">تم تحديد الطلب كمنفَّذ، بانتظار مراجعة المدير.</div>`;
+      renderStaffTasks();
+    }));
+
+    card.querySelectorAll('[data-ask-toggle]').forEach(btn => btn.addEventListener('click', () => {
+      const form = document.getElementById(`ask-form-${btn.dataset.askToggle}`);
+      form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    }));
+    card.querySelectorAll('[data-send-ask]').forEach(btn => btn.addEventListener('click', async () => {
+      const reqId = btn.dataset.sendAsk;
+      const question = document.getElementById(`ask-text-${reqId}`).value.trim();
+      const msgEl = document.getElementById(`ask-msg-${reqId}`);
+      if (!question) { msgEl.innerHTML = `<div class="msg err">اكتب استفسارك أولاً.</div>`; return; }
+      const ok = await runOrAlert(sb.from('request_inquiries').insert({ request_id: reqId, asked_by: CURRENT_USER.id, question }), 'تعذر إرسال الاستفسار');
+      if (ok) { msgEl.innerHTML = `<div class="msg ok">تم إرسال الاستفسار.</div>`; renderStaffTasks(); }
+    }));
+
+    card.querySelectorAll('[data-submit-final]').forEach(btn => btn.addEventListener('click', async () => {
+      const reqId = btn.dataset.submitFinal;
+      const files = collectUploadFiles('final-'+reqId);
+      const msgEl = document.getElementById(`final-msg-${reqId}`);
+      if (!files.length) { msgEl.innerHTML = `<div class="msg err">اختر الملف النهائي أولاً.</div>`; return; }
+      msgEl.innerHTML = `<div class="msg ok">جاري الرفع...</div>`;
+      const file = files[0];
+      const path = `${reqId}/${Date.now()}_${file.name}`;
+      const { error: upErr } = await sb.storage.from('final-documents').upload(path, file);
+      if (upErr) { msgEl.innerHTML = `<div class="msg err">فشل رفع الملف: ${upErr.message}</div>`; return; }
+      const ok = await runOrAlert(sb.from('requests').update({ final_file_path: path }).eq('id', reqId), 'تعذر حفظ الملف النهائي');
+      if (ok) { msgEl.innerHTML = `<div class="msg ok">تم رفع الملف النهائي بنجاح.</div>`; renderStaffTasks(); }
     }));
   }
 }
@@ -979,6 +1103,8 @@ async function renderAdminRequests() {
   for (const r of requests) {
     const needsAssignment = !r.assigned_staff_id;
     const attachHtml = await attachmentsHtml(r.id);
+    const finalHtml = await finalFileHtml(r);
+    const inqHtml = await inquiriesHtml(r.id, 'admin');
     const card = document.createElement('div');
     card.className = `card ${priorityCardClass(r.priority)}`;
     card.innerHTML = `
@@ -987,7 +1113,10 @@ async function renderAdminRequests() {
         ${statusBadge(r.status)}
       </div>
       ${progressBarHtml(r.status)}
+      ${timestampsHtml(r)}
       ${attachHtml}
+      ${inqHtml}
+      ${finalHtml}
       <div style="margin-top:.7rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
         <select data-priority-select="${r.id}" style="max-width:130px">
           <option value="normal" ${r.priority==='normal'?'selected':''}>عادي</option>
@@ -999,6 +1128,7 @@ async function renderAdminRequests() {
       </div>
     `;
     el.appendChild(card);
+    wireInquiryAnswerButtons(card, () => renderAdminRequests());
   }
   el.querySelectorAll('[data-priority-select]').forEach(sel => sel.addEventListener('change', async () => {
     const ok = await runOrAlert(sb.from('requests').update({ priority: sel.value }).eq('id', sel.dataset.prioritySelect), 'تعذر تحديث الأولوية');
@@ -1023,6 +1153,8 @@ async function renderAdminDrafts() {
     card.innerHTML = `
       <div class="req-title">${d.requests?.title||''} — نسخة ${d.version}</div>
       <div class="req-meta">${d.requests?.companies?.name||''}</div>
+      <div id="draft-file-${d.id}" class="req-meta" style="margin-top:.5rem">جاري تحميل رابط الملف...</div>
+      ${d.client_notes ? `<div class="msg err" style="margin-top:.6rem"><strong>ملاحظات تعديل من العميل:</strong><br>${d.client_notes}</div>` : ''}
       <div style="margin-top:.7rem;display:flex;gap:.5rem">
         <button class="btn btn-g btn-sm" data-approve-draft="${d.id}" data-req="${d.request_id}">اعتماد وإرسال للعميل ←</button>
         <button class="btn btn-danger btn-sm" data-reject-draft="${d.id}">رفض وإرجاع</button>
@@ -1032,6 +1164,12 @@ async function renderAdminDrafts() {
         <button class="btn btn-o btn-sm" style="margin-top:.5rem" data-send-reject="${d.id}">إرسال الرفض ←</button>
       </div>`;
     el.appendChild(card);
+    (async () => {
+      const fileEl = document.getElementById(`draft-file-${d.id}`);
+      if (!d.file_path) { fileEl.textContent = '📝 حُدد كمنفَّذ بدون ملف مرفق'; return; }
+      const { data } = await sb.storage.from('drafts').createSignedUrl(d.file_path, 3600);
+      fileEl.innerHTML = data?.signedUrl ? `<a class="attach-link" href="${data.signedUrl}" target="_blank">📎 عرض/تحميل ملف المسودة</a>` : 'تعذر تحميل رابط الملف';
+    })();
   });
   el.querySelectorAll('[data-approve-draft]').forEach(btn => btn.addEventListener('click', async () => {
     const ok1 = await runOrAlert(sb.from('drafts').update({ status: 'approved_for_client' }).eq('id', btn.dataset.approveDraft), 'تعذر اعتماد المسودة');
