@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>صمام | تسجيل الدخول</title>
+<meta name="robots" content="noindex, nofollow">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --g:#3A584B; --g2:#4a6d5c; --gold:#BCA569; --gold2:#cdbb8a;
+    --w:#FFFFFF; --off:#F7F6F2; --t:#1c2621; --t2:#4a534d; --t3:#7c847e; --bd:#e4e2da;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Tajawal',sans-serif;background:var(--off);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1.5rem}
+  .card{background:var(--w);border:1px solid var(--bd);border-radius:16px;padding:2.5rem 2rem;max-width:400px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.06)}
+  .logo-wrap{display:flex;justify-content:center;margin-bottom:1.5rem}
+  .logo-wrap img{width:110px;height:auto}
+  h1{font-size:1.15rem;font-weight:800;color:var(--t);text-align:center;margin-bottom:.3rem}
+  .sub{font-size:.82rem;color:var(--t3);text-align:center;margin-bottom:1.8rem}
+  .tabs{display:flex;background:var(--off);border-radius:10px;padding:4px;margin-bottom:1.5rem}
+  .tab{flex:1;text-align:center;padding:.6rem;font-size:.85rem;font-weight:700;border-radius:8px;cursor:pointer;color:var(--t3);transition:all .2s;user-select:none}
+  .tab.active{background:var(--w);color:var(--g);box-shadow:0 1px 4px rgba(0,0,0,.08)}
+  .fg{margin-bottom:1rem}
+  label{display:block;font-size:.8rem;font-weight:700;color:var(--t2);margin-bottom:.4rem}
+  input{width:100%;padding:.75rem .9rem;border:1px solid var(--bd);border-radius:8px;font-family:inherit;font-size:.9rem;background:var(--off)}
+  input:focus{outline:none;border-color:var(--gold);background:var(--w)}
+  button.submit{width:100%;padding:.85rem;background:var(--g);color:var(--w);border:none;border-radius:8px;font-family:inherit;font-size:.92rem;font-weight:700;cursor:pointer;margin-top:.5rem;transition:background .2s}
+  button.submit:hover{background:var(--g2)}
+  button.submit:disabled{opacity:.6;cursor:not-allowed}
+  .msg{font-size:.82rem;padding:.7rem .9rem;border-radius:8px;margin-bottom:1rem;display:none}
+  .msg.err{background:#fdecec;color:#b3261e;display:block}
+  .msg.ok{background:#eaf5ee;color:#1e6b3a;display:block}
+  .hidden{display:none}
+  .foot{text-align:center;font-size:.75rem;color:var(--t3);margin-top:1.5rem}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo-wrap"><img src="assets/logo.png" alt="صمام"></div>
+    <h1>بوابة صمام التشغيلية</h1>
+    <p class="sub">من إتقان لخدمات الأعمال</p>
+
+    <div class="tabs">
+      <div class="tab active" data-tab="signin">تسجيل الدخول</div>
+      <div class="tab" data-tab="signup">حساب جديد</div>
+    </div>
+
+    <div id="msg" class="msg"></div>
+
+    <!-- SIGN IN -->
+    <form id="signinForm">
+      <div class="fg">
+        <label for="si-email">البريد الإلكتروني</label>
+        <input id="si-email" type="email" required autocomplete="email">
+      </div>
+      <div class="fg">
+        <label for="si-pass">كلمة المرور</label>
+        <input id="si-pass" type="password" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="submit" id="si-btn">دخول ←</button>
+    </form>
+
+    <!-- SIGN UP -->
+    <form id="signupForm" class="hidden">
+      <div class="fg">
+        <label for="su-name">الاسم الكامل</label>
+        <input id="su-name" type="text" required>
+      </div>
+      <div class="fg">
+        <label for="su-email">البريد الإلكتروني</label>
+        <input id="su-email" type="email" required autocomplete="email">
+      </div>
+      <div class="fg">
+        <label for="su-pass">كلمة المرور (٦ أحرف على الأقل)</label>
+        <input id="su-pass" type="password" required minlength="6" autocomplete="new-password">
+      </div>
+      <button type="submit" class="submit" id="su-btn">إنشاء الحساب ←</button>
+    </form>
+
+    <p class="foot">تواجه مشكلة بالدخول؟ تواصل مع إدارة إتقان.</p>
+  </div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+  // ---- Supabase connection (public anon key — safe to expose, protected by RLS) ----
+  const SUPABASE_URL = "https://rvdhaylilyfclxbkpwud.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ2ZGhheWxpbHlmY2x4Ymtwd3VkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkyMTk0MDEsImV4cCI6MjEwNDc5NTQwMX0.adDwLJNuYyOVd-z-qJaThwl0D0_7Sb0wsPvt8MhEU94";
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // ---- Tab switching ----
+  const tabs = document.querySelectorAll('.tab');
+  const signinForm = document.getElementById('signinForm');
+  const signupForm = document.getElementById('signupForm');
+  tabs.forEach(t => t.addEventListener('click', () => {
+    tabs.forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    hideMsg();
+    if (t.dataset.tab === 'signin') { signinForm.classList.remove('hidden'); signupForm.classList.add('hidden'); }
+    else { signupForm.classList.remove('hidden'); signinForm.classList.add('hidden'); }
+  }));
+
+  const msgBox = document.getElementById('msg');
+  function showMsg(text, type) { msgBox.textContent = text; msgBox.className = 'msg ' + type; }
+  function hideMsg() { msgBox.className = 'msg'; }
+
+  // ---- Redirect if already logged in ----
+  (async () => {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) window.location.href = 'app.html';
+  })();
+
+  // ---- Sign in ----
+  signinForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('si-btn');
+    btn.disabled = true; btn.textContent = 'جاري الدخول...';
+    hideMsg();
+    const email = document.getElementById('si-email').value.trim();
+    const password = document.getElementById('si-pass').value;
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    btn.disabled = false; btn.textContent = 'دخول ←';
+    if (error) {
+      showMsg('فشل تسجيل الدخول: تأكد من البريد وكلمة المرور.', 'err');
+    } else {
+      window.location.href = 'app.html';
+    }
+  });
+
+  // ---- Sign up ----
+  signupForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('su-btn');
+    btn.disabled = true; btn.textContent = 'جاري الإنشاء...';
+    hideMsg();
+    const full_name = document.getElementById('su-name').value.trim();
+    const email = document.getElementById('su-email').value.trim();
+    const password = document.getElementById('su-pass').value;
+    const { data, error } = await sb.auth.signUp({
+      email, password,
+      options: { data: { full_name } }
+    });
+    btn.disabled = false; btn.textContent = 'إنشاء الحساب ←';
+    if (error) {
+      showMsg('تعذر إنشاء الحساب: ' + (error.message.includes('already') ? 'هذا البريد مسجل مسبقاً.' : error.message), 'err');
+    } else if (data.user && !data.session) {
+      showMsg('تم إنشاء الحساب! تحقق من بريدك الإلكتروني لتأكيد الحساب قبل الدخول.', 'ok');
+    } else {
+      window.location.href = 'app.html';
+    }
+  });
+</script>
+</body>
+</html>
