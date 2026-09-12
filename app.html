@@ -57,14 +57,20 @@
   .section-title{font-size:1rem;font-weight:800;margin:1.6rem 0 .8rem;display:flex;align-items:center;gap:.5rem}
   .section-title:first-child{margin-top:0}
   .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:.7rem;margin-bottom:1.5rem}
-  .stat{background:#fff;border:1px solid var(--bd);border-radius:10px;padding:1rem;text-align:center}
+  .stat{background:#fff;border:1px solid var(--bd);border-radius:10px;padding:1rem;text-align:center;transition:all .2s}
   .stat .n{font-size:1.5rem;font-weight:800;color:var(--g)}
   .stat .l{font-size:.72rem;color:var(--t3);margin-top:.2rem}
+  .stat.highlight{background:var(--warn-bg);border-color:#f0d9a8}
+  .stat.highlight .n{color:var(--warn-t)}
+  .stat.highlight .l{color:var(--warn-t)}
+
   .card{background:#fff;border:1px solid var(--bd);border-radius:12px;padding:1.2rem;margin-bottom:.9rem}
+  .card.urgent{border-right:4px solid #d9534f}
   .req-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.6rem}
   .req-title{font-size:.9rem;font-weight:700}
   .req-meta{font-size:.75rem;color:var(--t3);margin-top:.2rem}
   .company-chip{display:inline-flex;align-items:center;gap:.3rem;font-size:.7rem;font-weight:700;color:var(--g);background:var(--off);border:1px solid var(--bd);padding:.2rem .6rem;border-radius:100px;margin-top:.3rem}
+  .urgent-chip{display:inline-flex;align-items:center;gap:.3rem;font-size:.68rem;font-weight:700;color:#d9534f;background:#fdecec;padding:.2rem .6rem;border-radius:100px}
   .badge{font-size:.72rem;font-weight:700;padding:.3rem .7rem;border-radius:100px;white-space:nowrap}
   .b-new{background:#eef1f4;color:#445}
   .b-progress{background:var(--warn-bg);color:var(--warn-t)}
@@ -77,6 +83,18 @@
   .live-pill{display:inline-flex;align-items:center;gap:.4rem;background:var(--ok-bg);color:var(--ok-t);font-size:.72rem;font-weight:700;padding:.3rem .7rem;border-radius:100px}
   .live-dot{width:7px;height:7px;border-radius:50%;background:var(--ok-t);animation:pulse 1.5s infinite}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+  .progress-bar{display:flex;align-items:flex-start;margin:.9rem 0}
+  .progress-step{flex:1;text-align:center;position:relative}
+  .progress-line{position:absolute;top:11px;right:50%;width:100%;height:2px;background:var(--bd);z-index:0}
+  .progress-step:first-child .progress-line{display:none}
+  .progress-step.done .progress-line{background:var(--g)}
+  .dot{width:22px;height:22px;border-radius:50%;background:var(--bd);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700;margin:0 auto .4rem;position:relative;z-index:1}
+  .progress-step.done .dot{background:var(--g)}
+  .progress-step.current .dot{background:var(--gold);color:var(--t)}
+  .progress-step .lbl{font-size:.62rem;color:var(--t3)}
+  .progress-step.done .lbl,.progress-step.current .lbl{color:var(--t);font-weight:700}
+
   .btn{display:inline-block;padding:.55rem 1rem;border:none;border-radius:8px;font-family:inherit;font-size:.8rem;font-weight:700;cursor:pointer;text-decoration:none}
   .btn-g{background:var(--g);color:#fff}
   .btn-g:hover{background:var(--g2)}
@@ -84,10 +102,16 @@
   .btn-o:hover{background:var(--off)}
   .btn-danger{background:var(--err-bg);color:var(--err-t);border:1px solid #f3c9c6}
   .btn-sm{padding:.4rem .8rem;font-size:.75rem}
+
+  .alert-banner{background:var(--warn-bg);border:1px solid #f0d9a8;color:var(--warn-t);border-radius:10px;padding:.9rem 1.1rem;margin-bottom:1.2rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.6rem;font-size:.85rem;font-weight:700}
+
+  .dropzone{border:2px dashed var(--bd);border-radius:10px;padding:1rem;transition:all .2s}
+  .dropzone.dragover{border-color:var(--gold);background:rgba(188,165,105,.08)}
   .upload-row{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
-  .file-label{display:inline-flex;align-items:center;gap:.4rem;background:var(--off);border:1px dashed var(--bd);border-radius:8px;padding:.5rem .8rem;font-size:.78rem;cursor:pointer;color:var(--t2)}
+  .file-label{display:inline-flex;align-items:center;gap:.4rem;background:var(--off);border:1px solid var(--bd);border-radius:8px;padding:.5rem .8rem;font-size:.78rem;cursor:pointer;color:var(--t2)}
   .file-label:hover{background:#eee}
   .file-label input{display:none}
+
   form.new-req{display:grid;gap:.8rem}
   label{font-size:.78rem;font-weight:700;color:var(--t2);display:block;margin-bottom:.3rem}
   input,textarea,select{width:100%;padding:.65rem .8rem;border:1px solid var(--bd);border-radius:8px;font-family:inherit;font-size:.85rem;background:var(--off)}
@@ -95,7 +119,12 @@
   .draft-item{border-top:1px solid var(--bd);padding-top:.7rem;margin-top:.7rem}
   .attach-link{display:block;font-size:.78rem;color:var(--g);margin-top:.3rem;text-decoration:none}
   .attach-link:hover{text-decoration:underline}
-  .empty{color:var(--t3);font-size:.85rem;text-align:center;padding:2rem 0}
+
+  .empty-state{text-align:center;padding:2.5rem 1rem;color:var(--t3)}
+  .empty-state .ico{font-size:2rem;margin-bottom:.6rem}
+  .empty-state .msg1{font-size:.85rem;font-weight:700;color:var(--t2);margin-bottom:.3rem}
+  .empty-state .msg2{font-size:.78rem}
+
   .loading{text-align:center;padding:3rem;color:var(--t3)}
   .msg{font-size:.82rem;padding:.7rem .9rem;border-radius:8px;margin-bottom:1rem}
   .msg.err{background:var(--err-bg);color:var(--err-t)}
@@ -142,6 +171,14 @@ const STATUS_LABELS = {
   new: ['جديد', 'b-new'], assigned: ['مُسند', 'b-new'], in_progress: ['قيد التنفيذ', 'b-progress'],
   pending_admin_review: ['بانتظار مراجعة المدير', 'b-review'], pending_client_approval: ['بانتظار اعتمادك', 'b-approval'],
   client_revision_requested: ['طلب تعديل', 'b-revision'], completed: ['مكتمل', 'b-done'],
+};
+const PROGRESS_LABELS = ['تم الاستلام', 'قيد التنفيذ', 'بانتظار الاعتماد', 'مكتمل'];
+const QUICK_TITLES = {
+  hr: ['تحديث عقد عمل', 'إصدار تأشيرة عمل', 'إعداد مسير رواتب', 'تجديد إقامة موظف', 'إنهاء خدمات موظف'],
+  accounting: ['مراجعة فواتير الشهر', 'إعداد قوائم مالية', 'تسوية زكوية وضريبية', 'مطابقة بنكية', 'إقفال شهري'],
+  marketing: ['إطلاق حملة إعلانية', 'تصميم منشورات الشهر', 'تقرير أداء الحسابات', 'خطة محتوى جديدة'],
+  consulting: ['استشارة تطوير أعمال', 'إعادة هيكلة تنظيمية', 'دراسة جدوى'],
+  investment: ['استفسار عن رخصة استثمار', 'متابعة طلب تسجيل استثماري'],
 };
 
 const app = document.getElementById('app');
@@ -198,6 +235,25 @@ function timeAgo(d) {
   return fmtDate(d);
 }
 function companyChip(c) { return c ? `<span class="company-chip">🏢 ${c.name}${c.cr_number ? ' · '+c.cr_number : ''}</span>` : ''; }
+function priorityCardClass(p) { return p === 'urgent' ? 'urgent' : ''; }
+function urgentChip(p) { return p === 'urgent' ? `<span class="urgent-chip">🔴 عاجل</span>` : ''; }
+function emptyState(icon, msg1, msg2) { return `<div class="empty-state"><div class="ico">${icon}</div><div class="msg1">${msg1}</div><div class="msg2">${msg2||''}</div></div>`; }
+
+function progressStep(status) {
+  if (status === 'completed') return 3;
+  if (status === 'pending_client_approval' || status === 'client_revision_requested') return 2;
+  if (status === 'in_progress' || status === 'pending_admin_review') return 1;
+  return 0;
+}
+function progressBarHtml(status) {
+  const cur = progressStep(status);
+  return `<div class="progress-bar">${PROGRESS_LABELS.map((lbl,i) => `
+    <div class="progress-step ${i<cur?'done':''} ${i===cur?'current':''}">
+      <div class="progress-line"></div>
+      <div class="dot">${i<cur?'✓':i+1}</div>
+      <div class="lbl">${lbl}</div>
+    </div>`).join('')}</div>`;
+}
 
 function setupChrome() {
   document.getElementById('logoutBtn').addEventListener('click', async () => { await sb.auth.signOut(); window.location.href = 'index.html'; });
@@ -287,11 +343,14 @@ async function attachmentsHtml(requestId) {
 
 function uploadWidgetHtml(idPrefix) {
   return `
-    <div class="upload-row">
-      <label class="file-label">📎 إرفاق ملف<input type="file" multiple id="${idPrefix}-files"></label>
-      <label class="file-label">📷 التقاط صورة<input type="file" accept="image/*" capture="environment" id="${idPrefix}-camera"></label>
+    <div class="dropzone" id="${idPrefix}-dropzone">
+      <div class="upload-row">
+        <label class="file-label">📎 إرفاق ملف<input type="file" multiple id="${idPrefix}-files"></label>
+        <label class="file-label">📷 التقاط صورة<input type="file" accept="image/*" capture="environment" id="${idPrefix}-camera"></label>
+      </div>
+      <div class="req-meta" style="margin-top:.5rem">أو اسحب الملفات هنا وأفلتها</div>
+      <div id="${idPrefix}-filenames" class="req-meta" style="margin-top:.4rem"></div>
     </div>
-    <div id="${idPrefix}-filenames" class="req-meta" style="margin-top:.4rem"></div>
   `;
 }
 function wireUploadWidgetPreview(idPrefix) {
@@ -304,6 +363,21 @@ function wireUploadWidgetPreview(idPrefix) {
   };
   document.getElementById(`${idPrefix}-files`)?.addEventListener('change', update);
   document.getElementById(`${idPrefix}-camera`)?.addEventListener('change', update);
+  wireDragDrop(`${idPrefix}-dropzone`, `${idPrefix}-files`, update);
+}
+function wireDragDrop(zoneId, fileInputId, onUpdate) {
+  const zone = document.getElementById(zoneId);
+  const input = document.getElementById(fileInputId);
+  if (!zone || !input) return;
+  ['dragover','dragenter'].forEach(ev => zone.addEventListener(ev, e => { e.preventDefault(); zone.classList.add('dragover'); }));
+  ['dragleave','drop'].forEach(ev => zone.addEventListener(ev, e => { e.preventDefault(); zone.classList.remove('dragover'); }));
+  zone.addEventListener('drop', e => {
+    const dt = new DataTransfer();
+    [...input.files].forEach(f => dt.items.add(f));
+    [...e.dataTransfer.files].forEach(f => dt.items.add(f));
+    input.files = dt.files;
+    if (onUpdate) onUpdate();
+  });
 }
 function collectUploadFiles(idPrefix) {
   const f1 = [...(document.getElementById(`${idPrefix}-files`)?.files || [])];
@@ -323,31 +397,26 @@ async function renderClientDashboard() {
   app.innerHTML = `
     ${CURRENT_COMPANY ? `
       <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.6rem">
-        <div>
-          <div class="req-title">🏢 ${CURRENT_COMPANY.name}</div>
-          <div class="req-meta">السجل التجاري: ${CURRENT_COMPANY.cr_number || '—'} · ${CURRENT_COMPANY.entity_type || ''}</div>
-        </div>
+        <div><div class="req-title">🏢 ${CURRENT_COMPANY.name}</div><div class="req-meta">السجل التجاري: ${CURRENT_COMPANY.cr_number || '—'} · ${CURRENT_COMPANY.entity_type || ''}</div></div>
         ${CURRENT_COMPANY.is_active ? `<span class="badge b-active">منشأة مفعّلة</span>` : `<span class="badge b-pending">بانتظار تفعيل الإدارة</span>`}
       </div>
       ${!CURRENT_COMPANY.is_active ? `<div class="msg err">حسابك بانتظار تفعيل الإدارة قبل أن تتمكن من إرسال طلبات جديدة. سيتم إشعارك فور التفعيل.</div>` : ''}
     ` : ''}
-
     <div class="stats">
       <div class="stat"><div class="n">${counts.pending_client_approval}</div><div class="l">بانتظار اعتمادك</div></div>
       <div class="stat"><div class="n">${counts.in_progress}</div><div class="l">قيد التنفيذ</div></div>
       <div class="stat"><div class="n">${counts.completed}</div><div class="l">مكتملة</div></div>
     </div>
-
     <div class="section-title">آخر الطلبات (كل الخدمات)</div>
     <div id="reqList"></div>
   `;
 
   const listEl = document.getElementById('reqList');
-  if (!requests || requests.length === 0) { listEl.innerHTML = `<div class="empty">لا توجد طلبات بعد. اختر خدمة من القائمة الجانبية لإرسال طلبك الأول.</div>`; return; }
+  if (!requests || requests.length === 0) { listEl.innerHTML = emptyState('📭', 'لا توجد طلبات بعد', 'ابدأ بإرسال طلبك الأول عبر القائمة الجانبية'); return; }
   requests.slice(0, 8).forEach(r => {
     const card = document.createElement('div');
-    card.className = 'card';
-    card.innerHTML = `<div class="req-row"><div><div class="req-title">${r.title}</div><div class="req-meta">${r.services?.name_ar||''} · ${fmtDate(r.created_at)}</div></div>${statusBadge(r.status)}</div>`;
+    card.className = `card ${priorityCardClass(r.priority)}`;
+    card.innerHTML = `<div class="req-row"><div><div class="req-title">${r.title} ${urgentChip(r.priority)}</div><div class="req-meta">${r.services?.name_ar||''} · ${fmtDate(r.created_at)}</div></div>${statusBadge(r.status)}</div>${progressBarHtml(r.status)}`;
     listEl.appendChild(card);
   });
 }
@@ -356,12 +425,17 @@ async function renderClientServicePage(serviceId) {
   const service = ALL_SERVICES.find(s => s.id === serviceId);
   const companyActive = CURRENT_COMPANY ? CURRENT_COMPANY.is_active : false;
   const { data: requests } = await sb.from('requests').select('*, services(name_ar)').eq('client_id', CURRENT_USER.id).eq('service_id', serviceId).order('created_at', { ascending: false });
+  const quickTitles = QUICK_TITLES[service?.key] || [];
 
   app.innerHTML = `
     <div class="section-title">طلب جديد — ${service?.name_ar || ''}</div>
     <div class="card">
       ${!companyActive ? `<div class="msg err">لا يمكنك إرسال طلبات جديدة حتى تفعّل الإدارة حساب منشأتك.</div>` : ''}
       <form class="new-req" id="newReqForm">
+        ${quickTitles.length ? `
+          <div><label>اختر نوعاً شائعاً (اختياري)</label>
+            <select id="nr-quick"><option value="">— أو اكتب عنواناً خاصاً أدناه —</option>${quickTitles.map(t=>`<option>${t}</option>`).join('')}</select>
+          </div>` : ''}
         <div><label>عنوان الطلب</label><input id="nr-title" required placeholder="مثال: مراجعة فواتير شهر سبتمبر"></div>
         <div><label>تفاصيل إضافية</label><textarea id="nr-desc" placeholder="أي تفاصيل تساعد فريقنا..."></textarea></div>
         <div><label>المرفقات (اختياري)</label>${uploadWidgetHtml('nr')}</div>
@@ -373,6 +447,7 @@ async function renderClientServicePage(serviceId) {
     <div id="reqList"></div>
   `;
   wireUploadWidgetPreview('nr');
+  document.getElementById('nr-quick')?.addEventListener('change', e => { if (e.target.value) document.getElementById('nr-title').value = e.target.value; });
 
   document.getElementById('newReqForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -389,10 +464,13 @@ async function renderClientServicePage(serviceId) {
 
     if (error) { msgEl.innerHTML = `<div class="msg err">تعذر إرسال الطلب: ${error.message}</div>`; btn.disabled = false; btn.textContent = 'إرسال الطلب ←'; return; }
 
-    for (const file of files) {
-      const path = `${newReq.id}/${Date.now()}_${file.name}`;
-      const { error: upErr } = await sb.storage.from('client-uploads').upload(path, file);
-      if (!upErr) await sb.from('request_attachments').insert({ request_id: newReq.id, uploaded_by: CURRENT_USER.id, file_path: path, file_name: file.name });
+    if (files.length) {
+      msgEl.innerHTML = `<div class="msg ok">جاري رفع المرفقات...</div>`;
+      for (const file of files) {
+        const path = `${newReq.id}/${Date.now()}_${file.name}`;
+        const { error: upErr } = await sb.storage.from('client-uploads').upload(path, file);
+        if (!upErr) await sb.from('request_attachments').insert({ request_id: newReq.id, uploaded_by: CURRENT_USER.id, file_path: path, file_name: file.name });
+      }
     }
     msgEl.innerHTML = `<div class="msg ok">تم إرسال طلبك بنجاح.</div>`;
     e.target.reset();
@@ -400,7 +478,7 @@ async function renderClientServicePage(serviceId) {
   });
 
   const listEl = document.getElementById('reqList');
-  if (!requests || requests.length === 0) { listEl.innerHTML = `<div class="empty">لا توجد طلبات بهذه الخدمة بعد.</div>`; return; }
+  if (!requests || requests.length === 0) { listEl.innerHTML = emptyState('📄', 'لا توجد طلبات بهذه الخدمة بعد', 'أرسل طلبك الأول باستخدام النموذج أعلاه'); return; }
 
   for (const r of requests) {
     const { data: drafts } = await sb.from('drafts').select('*').eq('request_id', r.id).order('version', { ascending: false });
@@ -409,12 +487,13 @@ async function renderClientServicePage(serviceId) {
     const attachHtml = await attachmentsHtml(r.id);
 
     const card = document.createElement('div');
-    card.className = 'card';
+    card.className = `card ${priorityCardClass(r.priority)}`;
     card.innerHTML = `
       <div class="req-row">
-        <div><div class="req-title">${r.title}</div><div class="req-meta">${fmtDate(r.created_at)}</div></div>
+        <div><div class="req-title">${r.title} ${urgentChip(r.priority)}</div><div class="req-meta">${fmtDate(r.created_at)}</div></div>
         <div style="display:flex;gap:.5rem;align-items:center">${openTimer ? `<span class="live-pill"><span class="live-dot"></span>الموظف يعمل الآن</span>` : ''}${statusBadge(r.status)}</div>
       </div>
+      ${progressBarHtml(r.status)}
       ${attachHtml}
       ${visibleDraft ? `
         <div class="draft-item">
@@ -450,30 +529,33 @@ async function renderStaff() {
   const { data: requests } = await sb.from('requests').select('*, services(name_ar), companies(name, cr_number)').eq('assigned_staff_id', CURRENT_USER.id).order('created_at', { ascending: false });
   app.innerHTML = `<div id="taskList"></div>`;
   const listEl = document.getElementById('taskList');
-  if (!requests || requests.length === 0) { listEl.innerHTML = `<div class="empty">لا توجد مهام مسندة إليك حالياً.</div>`; return; }
+  if (!requests || requests.length === 0) { listEl.innerHTML = emptyState('☕', 'لا توجد مهام مسندة إليك حالياً', 'استرح قليلاً، سيصلك إشعار فور إسناد مهمة جديدة'); return; }
 
   for (const r of requests) {
     const { data: openTimer } = await sb.from('task_timer_logs').select('*').eq('request_id', r.id).eq('staff_id', CURRENT_USER.id).is('ended_at', null).maybeSingle();
     const attachHtml = await attachmentsHtml(r.id);
     const card = document.createElement('div');
-    card.className = 'card';
+    card.className = `card ${priorityCardClass(r.priority)}`;
     card.innerHTML = `
       <div class="req-row">
         <div>
-          <div class="req-title">${r.title}</div>
+          <div class="req-title">${r.title} ${urgentChip(r.priority)}</div>
           <div class="req-meta">${r.services?.name_ar || ''}</div>
           ${companyChip(r.companies)}
         </div>
         ${statusBadge(r.status)}
       </div>
+      ${progressBarHtml(r.status)}
       ${r.description ? `<p class="req-meta" style="margin-top:.5rem">${r.description}</p>` : ''}
       ${attachHtml}
-      <div style="margin-top:.8rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+      <div style="margin-top:.8rem">
         ${!openTimer ? `<button class="btn btn-g btn-sm" data-start="${r.id}">بدء التنفيذ ←</button>`
-                     : `<span class="live-pill"><span class="live-dot"></span>يعمل الآن</span><button class="btn btn-danger btn-sm" data-stop="${openTimer.id}" data-req="${r.id}">إنهاء الجلسة</button>`}
+                     : `<span class="live-pill"><span class="live-dot"></span>يعمل الآن</span> <button class="btn btn-danger btn-sm" data-stop="${openTimer.id}" data-req="${r.id}">إنهاء الجلسة</button>`}
       </div>
-      <div style="margin-top:.7rem">${uploadWidgetHtml('draft-'+r.id)}
-        <button class="btn btn-o btn-sm" style="margin-top:.5rem" data-submit-draft="${r.id}">رفع كمسودة ←</button>
+      <div style="margin-top:.9rem;border-top:1px solid var(--bd);padding-top:.9rem">
+        <label>رفع مسودة / ملاحظات (متاح دائمًا)</label>
+        ${uploadWidgetHtml('draft-'+r.id)}
+        <button class="btn btn-o btn-sm" style="margin-top:.6rem" data-submit-draft="${r.id}">رفع كمسودة ←</button>
       </div>
       <div id="draft-msg-${r.id}"></div>
     `;
@@ -495,6 +577,7 @@ async function renderStaff() {
     const files = collectUploadFiles('draft-'+reqId);
     const msgEl = document.getElementById(`draft-msg-${reqId}`);
     if (!files.length) { msgEl.innerHTML = `<div class="msg err">اختر ملفاً أولاً.</div>`; return; }
+    msgEl.innerHTML = `<div class="msg ok">جاري الرفع...</div>`;
     const file = files[0];
     const path = `${reqId}/${Date.now()}_${file.name}`;
     const { error: upErr } = await sb.storage.from('drafts').upload(path, file);
@@ -511,15 +594,23 @@ async function renderStaff() {
 async function renderAdminDashboard() {
   const [{ data: requests }, { data: pendingDrafts }, { data: activeTimers }, { data: completedLogs }] = await Promise.all([
     sb.from('requests').select('*'),
-    sb.from('drafts').select('id').eq('status', 'pending_admin_review'),
+    sb.from('drafts').select('*, requests(title)').eq('status', 'pending_admin_review'),
     sb.from('task_timer_logs').select('*, profiles!task_timer_logs_staff_id_fkey(full_name), requests(title)').is('ended_at', null),
     sb.from('task_timer_logs').select('*, profiles!task_timer_logs_staff_id_fkey(full_name)').not('ended_at', 'is', null),
   ]);
 
+  const pendingCount = (pendingDrafts || []).length;
+
   app.innerHTML = `
+    ${pendingCount > 0 ? `
+      <div class="alert-banner">
+        <span>⚠️ يوجد ${pendingCount} مسودة بانتظار مراجعتك — آخرها: "${pendingDrafts[0].requests?.title || ''}"</span>
+        <button class="btn btn-g btn-sm" id="goToDraftsBtn">راجعها الآن ←</button>
+      </div>` : ''}
+
     <div class="stats">
       <div class="stat"><div class="n">${(requests||[]).filter(r=>r.status==='new').length}</div><div class="l">طلبات جديدة</div></div>
-      <div class="stat"><div class="n">${(pendingDrafts||[]).length}</div><div class="l">مسودات بانتظار مراجعتك</div></div>
+      <div class="stat ${pendingCount>0?'highlight':''}"><div class="n">${pendingCount}</div><div class="l">مسودات بانتظار مراجعتك</div></div>
       <div class="stat"><div class="n">${(activeTimers||[]).length}</div><div class="l">موظفون يعملون الآن</div></div>
     </div>
     <div class="section-title">👁️ من يعمل الآن</div>
@@ -528,9 +619,11 @@ async function renderAdminDashboard() {
     <div class="card" id="productivityReport"></div>
   `;
 
+  document.getElementById('goToDraftsBtn')?.addEventListener('click', () => navigate('drafts', 'تدقيق المسودات'));
+
   document.getElementById('liveActivity').innerHTML = (activeTimers && activeTimers.length)
     ? activeTimers.map(t => `<div class="req-row" style="padding:.5rem 0"><div><span class="live-pill"><span class="live-dot"></span>${t.profiles?.full_name||''}</span><span class="req-meta" style="display:inline;margin-right:.5rem">يعمل على: ${t.requests?.title||''}</span></div><span class="req-meta">بدأ ${timeAgo(t.started_at)}</span></div>`).join('')
-    : `<div class="empty">لا يوجد أحد يعمل حالياً.</div>`;
+    : emptyState('💤', 'لا يوجد أحد يعمل حالياً', '');
 
   const byStaff = {};
   (completedLogs || []).forEach(l => {
@@ -542,7 +635,7 @@ async function renderAdminDashboard() {
   document.getElementById('productivityReport').innerHTML = rows.length ? `
     <table class="report"><tr><th>الموظف</th><th>المهام المنجزة</th><th>متوسط الوقت</th></tr>
       ${rows.map(([name,s]) => `<tr><td>${name}</td><td>${s.count}</td><td>${fmtDuration(Math.round(s.total/s.count))}</td></tr>`).join('')}
-    </table>` : `<div class="empty">لا توجد بيانات إنتاجية مكتملة بعد.</div>`;
+    </table>` : emptyState('📊', 'لا توجد بيانات إنتاجية مكتملة بعد', '');
 }
 
 async function renderAdminRequests() {
@@ -552,27 +645,36 @@ async function renderAdminRequests() {
   ]);
   app.innerHTML = `<div id="allRequests"></div>`;
   const el = document.getElementById('allRequests');
-  if (!requests || requests.length === 0) { el.innerHTML = `<div class="empty">لا توجد طلبات بعد.</div>`; return; }
+  if (!requests || requests.length === 0) { el.innerHTML = emptyState('📋', 'لا توجد طلبات بعد', 'ستظهر هنا فور استلام أول طلب من العملاء'); return; }
 
   for (const r of requests) {
     const needsAssignment = !r.assigned_staff_id;
     const attachHtml = await attachmentsHtml(r.id);
     const card = document.createElement('div');
-    card.className = 'card';
+    card.className = `card ${priorityCardClass(r.priority)}`;
     card.innerHTML = `
       <div class="req-row">
-        <div><div class="req-title">${r.title}</div><div class="req-meta">${r.services?.name_ar||''} · ${fmtDate(r.created_at)}</div>${companyChip(r.companies)}</div>
+        <div><div class="req-title">${r.title} ${urgentChip(r.priority)}</div><div class="req-meta">${r.services?.name_ar||''} · ${fmtDate(r.created_at)}</div>${companyChip(r.companies)}</div>
         ${statusBadge(r.status)}
       </div>
+      ${progressBarHtml(r.status)}
       ${attachHtml}
-      ${needsAssignment ? `
-        <div style="margin-top:.7rem;display:flex;gap:.5rem;align-items:center">
+      <div style="margin-top:.7rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+        <select data-priority-select="${r.id}" style="max-width:130px">
+          <option value="normal" ${r.priority==='normal'?'selected':''}>عادي</option>
+          <option value="urgent" ${r.priority==='urgent'?'selected':''}>🔴 عاجل</option>
+        </select>
+        ${needsAssignment ? `
           <select id="assign-${r.id}" style="max-width:220px"><option value="">إسناد إلى...</option>${(staffList||[]).map(s=>`<option value="${s.id}">${s.full_name}</option>`).join('')}</select>
-          <button class="btn btn-g btn-sm" data-assign-btn="${r.id}">إسناد ←</button>
-        </div>` : ''}
+          <button class="btn btn-g btn-sm" data-assign-btn="${r.id}">إسناد ←</button>` : ''}
+      </div>
     `;
     el.appendChild(card);
   }
+  el.querySelectorAll('[data-priority-select]').forEach(sel => sel.addEventListener('change', async () => {
+    await sb.from('requests').update({ priority: sel.value }).eq('id', sel.dataset.prioritySelect);
+    renderAdminRequests();
+  }));
   el.querySelectorAll('[data-assign-btn]').forEach(btn => btn.addEventListener('click', async () => {
     const staffId = document.getElementById(`assign-${btn.dataset.assignBtn}`).value;
     if (!staffId) return;
@@ -585,7 +687,7 @@ async function renderAdminDrafts() {
   const { data: pendingDrafts } = await sb.from('drafts').select('*, requests(title, companies(name))').eq('status', 'pending_admin_review');
   app.innerHTML = `<div id="draftReview"></div>`;
   const el = document.getElementById('draftReview');
-  if (!pendingDrafts || pendingDrafts.length === 0) { el.innerHTML = `<div class="empty">لا توجد مسودات بانتظار المراجعة.</div>`; return; }
+  if (!pendingDrafts || pendingDrafts.length === 0) { el.innerHTML = emptyState('✅', 'لا توجد مسودات بانتظار المراجعة', 'كل شيء محدّث حالياً'); return; }
   pendingDrafts.forEach(d => {
     const card = document.createElement('div');
     card.className = 'card';
@@ -619,16 +721,13 @@ async function renderAdminCompanies() {
   const { data: companies } = await sb.from('companies').select('*').order('created_at', { ascending: false });
   app.innerHTML = `<div id="companiesList"></div>`;
   const el = document.getElementById('companiesList');
-  if (!companies || companies.length === 0) { el.innerHTML = `<div class="empty">لا توجد منشآت مسجلة بعد.</div>`; return; }
+  if (!companies || companies.length === 0) { el.innerHTML = emptyState('🏢', 'لا توجد منشآت مسجلة بعد', ''); return; }
   companies.forEach(c => {
     const card = document.createElement('div');
     card.className = 'card';
     card.innerHTML = `
       <div class="req-row">
-        <div>
-          <div class="req-title">🏢 ${c.name}</div>
-          <div class="req-meta">السجل التجاري: ${c.cr_number || '—'} · ${c.entity_type || ''} · سُجلت ${fmtDate(c.created_at)}</div>
-        </div>
+        <div><div class="req-title">🏢 ${c.name}</div><div class="req-meta">السجل التجاري: ${c.cr_number || '—'} · ${c.entity_type || ''} · سُجلت ${fmtDate(c.created_at)}</div></div>
         ${c.is_active ? `<span class="badge b-active">مفعّلة</span>` : `<span class="badge b-pending">بانتظار التفعيل</span>`}
       </div>
       ${!c.is_active ? `<div style="margin-top:.7rem"><button class="btn btn-g btn-sm" data-activate="${c.id}">تفعيل هذه المنشأة ←</button></div>` : ''}
