@@ -266,6 +266,14 @@ function priorityCardClass(p) { return p === 'urgent' ? 'urgent' : ''; }
 function urgentChip(p) { return p === 'urgent' ? `<span class="urgent-chip">🔴 عاجل</span>` : ''; }
 function emptyState(icon, msg1, msg2) { return `<div class="empty-state"><div class="ico">${icon}</div><div class="msg1">${msg1}</div><div class="msg2">${msg2||''}</div></div>`; }
 
+// Shared helper: run a Supabase call, alert the user clearly if it fails
+// (RLS violations, network errors, etc. no longer fail silently).
+async function runOrAlert(promise, failLabel) {
+  const { error } = await promise;
+  if (error) { alert(`${failLabel}: ${error.message}`); return false; }
+  return true;
+}
+
 function progressStep(status) {
   if (status === 'completed') return 3;
   if (status === 'pending_client_approval' || status === 'client_revision_requested') return 2;
@@ -878,12 +886,17 @@ async function renderStaffTasks() {
 
   function wireOneTaskCardEvents(card) {
     card.querySelectorAll('[data-start]').forEach(btn => btn.addEventListener('click', async () => {
-      await sb.from('task_timer_logs').insert({ request_id: btn.dataset.start, staff_id: CURRENT_USER.id });
-      await sb.from('requests').update({ status: 'in_progress' }).eq('id', btn.dataset.start);
+      btn.disabled = true;
+      const ok1 = await runOrAlert(sb.from('task_timer_logs').insert({ request_id: btn.dataset.start, staff_id: CURRENT_USER.id }), 'تعذر بدء التنفيذ');
+      if (!ok1) { btn.disabled = false; return; }
+      const ok2 = await runOrAlert(sb.from('requests').update({ status: 'in_progress' }).eq('id', btn.dataset.start), 'تعذر تحديث حالة الطلب');
+      if (!ok2) { btn.disabled = false; return; }
       renderStaffTasks();
     }));
     card.querySelectorAll('[data-stop]').forEach(btn => btn.addEventListener('click', async () => {
-      await sb.from('task_timer_logs').update({ ended_at: new Date().toISOString() }).eq('id', btn.dataset.stop);
+      btn.disabled = true;
+      const ok = await runOrAlert(sb.from('task_timer_logs').update({ ended_at: new Date().toISOString() }).eq('id', btn.dataset.stop), 'تعذر إنهاء الجلسة');
+      if (!ok) { btn.disabled = false; return; }
       renderStaffTasks();
     }));
     card.querySelectorAll('[data-submit-draft]').forEach(btn => btn.addEventListener('click', async () => {
@@ -900,7 +913,8 @@ async function renderStaffTasks() {
       const nextVersion = existing && existing[0] ? existing[0].version + 1 : 1;
       const { error: draftErr } = await sb.from('drafts').insert({ request_id: reqId, version: nextVersion, file_path: path, submitted_by: CURRENT_USER.id });
       if (draftErr) { msgEl.innerHTML = `<div class="msg err">فشل تسجيل المسودة: ${draftErr.message}</div>`; return; }
-      await sb.from('requests').update({ status: 'pending_admin_review' }).eq('id', reqId);
+      const { error: reqErr } = await sb.from('requests').update({ status: 'pending_admin_review' }).eq('id', reqId);
+      if (reqErr) { msgEl.innerHTML = `<div class="msg err">تم رفع الملف لكن فشل تحديث حالة الطلب: ${reqErr.message}</div>`; return; }
       msgEl.innerHTML = `<div class="msg ok">تم رفع المسودة، بانتظار مراجعة المدير.</div>`;
     }));
   }
@@ -987,14 +1001,14 @@ async function renderAdminRequests() {
     el.appendChild(card);
   }
   el.querySelectorAll('[data-priority-select]').forEach(sel => sel.addEventListener('change', async () => {
-    await sb.from('requests').update({ priority: sel.value }).eq('id', sel.dataset.prioritySelect);
-    renderAdminRequests();
+    const ok = await runOrAlert(sb.from('requests').update({ priority: sel.value }).eq('id', sel.dataset.prioritySelect), 'تعذر تحديث الأولوية');
+    if (ok) renderAdminRequests();
   }));
   el.querySelectorAll('[data-assign-btn]').forEach(btn => btn.addEventListener('click', async () => {
     const staffId = document.getElementById(`assign-${btn.dataset.assignBtn}`).value;
     if (!staffId) return;
-    await sb.from('requests').update({ assigned_staff_id: staffId, status: 'assigned' }).eq('id', btn.dataset.assignBtn);
-    renderAdminRequests();
+    const ok = await runOrAlert(sb.from('requests').update({ assigned_staff_id: staffId, status: 'assigned' }).eq('id', btn.dataset.assignBtn), 'تعذر إسناد الطلب');
+    if (ok) renderAdminRequests();
   }));
 }
 
@@ -1020,15 +1034,17 @@ async function renderAdminDrafts() {
     el.appendChild(card);
   });
   el.querySelectorAll('[data-approve-draft]').forEach(btn => btn.addEventListener('click', async () => {
-    await sb.from('drafts').update({ status: 'approved_for_client' }).eq('id', btn.dataset.approveDraft);
-    await sb.from('requests').update({ status: 'pending_client_approval' }).eq('id', btn.dataset.req);
+    const ok1 = await runOrAlert(sb.from('drafts').update({ status: 'approved_for_client' }).eq('id', btn.dataset.approveDraft), 'تعذر اعتماد المسودة');
+    if (!ok1) return;
+    const ok2 = await runOrAlert(sb.from('requests').update({ status: 'pending_client_approval' }).eq('id', btn.dataset.req), 'اعتمدت المسودة لكن تعذر تحديث حالة الطلب');
+    if (!ok2) return;
     renderAdminDrafts();
   }));
   el.querySelectorAll('[data-reject-draft]').forEach(btn => btn.addEventListener('click', () => { document.getElementById(`reject-form-${btn.dataset.rejectDraft}`).style.display = 'block'; }));
   el.querySelectorAll('[data-send-reject]').forEach(btn => btn.addEventListener('click', async () => {
     const notes = document.getElementById(`reject-notes-${btn.dataset.sendReject}`).value.trim();
-    await sb.from('drafts').update({ status: 'rejected_by_admin', admin_notes: notes }).eq('id', btn.dataset.sendReject);
-    renderAdminDrafts();
+    const ok = await runOrAlert(sb.from('drafts').update({ status: 'rejected_by_admin', admin_notes: notes }).eq('id', btn.dataset.sendReject), 'تعذر رفض المسودة');
+    if (ok) renderAdminDrafts();
   }));
 }
 
@@ -1065,8 +1081,8 @@ async function renderAdminCompanies() {
   });
   el.querySelectorAll('[data-activate]').forEach(btn => btn.addEventListener('click', async (e) => {
     e.stopPropagation();
-    await sb.from('companies').update({ is_active: true, activated_at: new Date().toISOString() }).eq('id', btn.dataset.activate);
-    renderAdminCompanies();
+    const ok = await runOrAlert(sb.from('companies').update({ is_active: true, activated_at: new Date().toISOString() }).eq('id', btn.dataset.activate), 'تعذر تفعيل المنشأة');
+    if (ok) renderAdminCompanies();
   }));
   el.querySelectorAll('[data-edit-toggle]').forEach(btn => btn.addEventListener('click', (e) => {
     e.stopPropagation();
