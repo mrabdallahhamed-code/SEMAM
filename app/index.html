@@ -725,12 +725,54 @@ async function renderStaffDashboard() {
 }
 
 async function renderStaffTasks() {
-  const { data: requests } = await sb.from('requests').select('*, services(name_ar), companies(name, cr_number)').eq('assigned_staff_id', CURRENT_USER.id).order('created_at', { ascending: false });
-  app.innerHTML = `<div id="taskList"></div>`;
-  const listEl = document.getElementById('taskList');
-  if (!requests || requests.length === 0) { listEl.innerHTML = emptyState('☕', 'لا توجد مهام مسندة إليك حالياً', 'استرح قليلاً، سيصلك إشعار فور إسناد مهمة جديدة'); return; }
+  const { data: requests } = await sb.from('requests').select('*, services(name_ar), companies(id, name, cr_number)').eq('assigned_staff_id', CURRENT_USER.id).order('created_at', { ascending: false });
+  if (!requests || requests.length === 0) {
+    app.innerHTML = `<div id="taskList"></div>`;
+    document.getElementById('taskList').innerHTML = emptyState('☕', 'لا توجد مهام مسندة إليك حالياً', 'استرح قليلاً، سيصلك إشعار فور إسناد مهمة جديدة');
+    return;
+  }
 
-  for (const r of requests) {
+  // group by company so a staff member handling several clients can scan by company
+  const companiesInvolved = [...new Map(requests.filter(r => r.companies).map(r => [r.companies.id, r.companies])).values()];
+
+  app.innerHTML = `
+    ${companiesInvolved.length > 1 ? `
+      <div class="card">
+        <label>تصفية حسب الشركة</label>
+        <select id="staffCompanyFilter">
+          <option value="">كل الشركات (${requests.length} مهمة)</option>
+          ${companiesInvolved.map(c => `<option value="${c.id}">🏢 ${c.name}</option>`).join('')}
+        </select>
+      </div>` : ''}
+    <div id="taskList"></div>
+  `;
+
+  document.getElementById('staffCompanyFilter')?.addEventListener('change', (e) => renderTaskCards(e.target.value));
+  renderTaskCards('');
+
+  function renderTaskCards(filterCompanyId) {
+    const listEl = document.getElementById('taskList');
+    listEl.innerHTML = '';
+    const filtered = filterCompanyId ? requests.filter(r => r.companies?.id === filterCompanyId) : requests;
+
+    // sort so tasks are visually grouped by company, "no company" last
+    const sorted = [...filtered].sort((a, b) => (a.companies?.name || 'ز').localeCompare(b.companies?.name || 'ز', 'ar'));
+
+    let lastCompanyId = undefined;
+    sorted.forEach(r => {
+      if (!filterCompanyId && companiesInvolved.length > 1 && r.companies?.id !== lastCompanyId) {
+        lastCompanyId = r.companies?.id;
+        const header = document.createElement('div');
+        header.className = 'section-title';
+        header.style.marginTop = '1.4rem';
+        header.textContent = r.companies ? `🏢 ${r.companies.name}` : 'بدون شركة محددة';
+        listEl.appendChild(header);
+      }
+      renderOneTaskCard(r, listEl);
+    });
+  }
+
+  async function renderOneTaskCard(r, listEl) {
     const { data: openTimer } = await sb.from('task_timer_logs').select('*').eq('request_id', r.id).eq('staff_id', CURRENT_USER.id).is('ended_at', null).maybeSingle();
     const attachHtml = await attachmentsHtml(r.id);
     const card = document.createElement('div');
@@ -760,34 +802,37 @@ async function renderStaffTasks() {
     `;
     listEl.appendChild(card);
     wireUploadWidgetPreview('draft-'+r.id);
+    wireOneTaskCardEvents(card);
   }
 
-  listEl.querySelectorAll('[data-start]').forEach(btn => btn.addEventListener('click', async () => {
-    await sb.from('task_timer_logs').insert({ request_id: btn.dataset.start, staff_id: CURRENT_USER.id });
-    await sb.from('requests').update({ status: 'in_progress' }).eq('id', btn.dataset.start);
-    renderStaffTasks();
-  }));
-  listEl.querySelectorAll('[data-stop]').forEach(btn => btn.addEventListener('click', async () => {
-    await sb.from('task_timer_logs').update({ ended_at: new Date().toISOString() }).eq('id', btn.dataset.stop);
-    renderStaffTasks();
-  }));
-  listEl.querySelectorAll('[data-submit-draft]').forEach(btn => btn.addEventListener('click', async () => {
-    const reqId = btn.dataset.submitDraft;
-    const files = collectUploadFiles('draft-'+reqId);
-    const msgEl = document.getElementById(`draft-msg-${reqId}`);
-    if (!files.length) { msgEl.innerHTML = `<div class="msg err">اختر ملفاً أولاً.</div>`; return; }
-    msgEl.innerHTML = `<div class="msg ok">جاري الرفع...</div>`;
-    const file = files[0];
-    const path = `${reqId}/${Date.now()}_${file.name}`;
-    const { error: upErr } = await sb.storage.from('drafts').upload(path, file);
-    if (upErr) { msgEl.innerHTML = `<div class="msg err">فشل رفع الملف: ${upErr.message}</div>`; return; }
-    const { data: existing } = await sb.from('drafts').select('version').eq('request_id', reqId).order('version', { ascending: false }).limit(1);
-    const nextVersion = existing && existing[0] ? existing[0].version + 1 : 1;
-    const { error: draftErr } = await sb.from('drafts').insert({ request_id: reqId, version: nextVersion, file_path: path, submitted_by: CURRENT_USER.id });
-    if (draftErr) { msgEl.innerHTML = `<div class="msg err">فشل تسجيل المسودة: ${draftErr.message}</div>`; return; }
-    await sb.from('requests').update({ status: 'pending_admin_review' }).eq('id', reqId);
-    msgEl.innerHTML = `<div class="msg ok">تم رفع المسودة، بانتظار مراجعة المدير.</div>`;
-  }));
+  function wireOneTaskCardEvents(card) {
+    card.querySelectorAll('[data-start]').forEach(btn => btn.addEventListener('click', async () => {
+      await sb.from('task_timer_logs').insert({ request_id: btn.dataset.start, staff_id: CURRENT_USER.id });
+      await sb.from('requests').update({ status: 'in_progress' }).eq('id', btn.dataset.start);
+      renderStaffTasks();
+    }));
+    card.querySelectorAll('[data-stop]').forEach(btn => btn.addEventListener('click', async () => {
+      await sb.from('task_timer_logs').update({ ended_at: new Date().toISOString() }).eq('id', btn.dataset.stop);
+      renderStaffTasks();
+    }));
+    card.querySelectorAll('[data-submit-draft]').forEach(btn => btn.addEventListener('click', async () => {
+      const reqId = btn.dataset.submitDraft;
+      const files = collectUploadFiles('draft-'+reqId);
+      const msgEl = document.getElementById(`draft-msg-${reqId}`);
+      if (!files.length) { msgEl.innerHTML = `<div class="msg err">اختر ملفاً أولاً.</div>`; return; }
+      msgEl.innerHTML = `<div class="msg ok">جاري الرفع...</div>`;
+      const file = files[0];
+      const path = `${reqId}/${Date.now()}_${file.name}`;
+      const { error: upErr } = await sb.storage.from('drafts').upload(path, file);
+      if (upErr) { msgEl.innerHTML = `<div class="msg err">فشل رفع الملف: ${upErr.message}</div>`; return; }
+      const { data: existing } = await sb.from('drafts').select('version').eq('request_id', reqId).order('version', { ascending: false }).limit(1);
+      const nextVersion = existing && existing[0] ? existing[0].version + 1 : 1;
+      const { error: draftErr } = await sb.from('drafts').insert({ request_id: reqId, version: nextVersion, file_path: path, submitted_by: CURRENT_USER.id });
+      if (draftErr) { msgEl.innerHTML = `<div class="msg err">فشل تسجيل المسودة: ${draftErr.message}</div>`; return; }
+      await sb.from('requests').update({ status: 'pending_admin_review' }).eq('id', reqId);
+      msgEl.innerHTML = `<div class="msg ok">تم رفع المسودة، بانتظار مراجعة المدير.</div>`;
+    }));
+  }
 }
 
 async function renderAdminDashboard() {
