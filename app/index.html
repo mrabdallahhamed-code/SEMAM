@@ -247,7 +247,11 @@ async function ensureCompanyLinked() {
 }
 
 function roleLabel(r) { return { client: 'عميل', staff: 'فريق العمل', admin: 'إدارة' }[r] || r; }
-function statusBadge(s) { const [label, cls] = STATUS_LABELS[s] || [s, 'b-new']; return `<span class="badge ${cls}">${label}</span>`; }
+function statusBadge(s) {
+  const [label, cls] = STATUS_LABELS[s] || [s, 'b-new'];
+  const displayLabel = (s === 'pending_client_approval' && CURRENT_PROFILE?.role !== 'client') ? 'بانتظار اعتماد العميل' : label;
+  return `<span class="badge ${cls}">${displayLabel}</span>`;
+}
 function fmtDate(d) { return new Date(d).toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' }); }
 function fmtDuration(sec) { if (!sec) return '—'; const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60); return h>0 ? `${h}س ${m}د` : `${m}د`; }
 function timeAgo(d) {
