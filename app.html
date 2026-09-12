@@ -604,7 +604,22 @@ async function renderClientProfile() {
           <button type="submit" class="btn btn-g">حفظ بيانات المنشأة ←</button>
         </form>
         <div id="cf-msg"></div>
-      ` : emptyState('🏢', 'لا توجد بيانات منشأة مرتبطة بحسابك', '')}
+      ` : `
+        <div class="msg err">لا توجد بيانات منشأة مرتبطة بحسابك بعد. أدخلها الآن:</div>
+        <form id="companyCreateForm" style="display:grid;gap:.8rem">
+          <div><label>اسم المنشأة</label><input id="ccf-name" required placeholder="مثال: شركة ركاز نجد"></div>
+          <div><label>رقم السجل التجاري الموحد</label><input id="ccf-cr" required placeholder="٧٠٠٠xxxxxx"></div>
+          <div><label>الكيان القانوني</label>
+            <select id="ccf-entity" required>
+              <option value="">اختر...</option>
+              ${['مؤسسة فردية','شركة ذات مسؤولية محدودة','شركة الشخص الواحد','شركة مساهمة مبسطة','شركة تضامن','فرع شركة أجنبية','أخرى']
+                .map(o => `<option>${o}</option>`).join('')}
+            </select>
+          </div>
+          <button type="submit" class="btn btn-g">حفظ بيانات المنشأة ←</button>
+        </form>
+        <div id="ccf-msg"></div>
+      `}
     </div>
   `;
 
@@ -625,6 +640,26 @@ async function renderClientProfile() {
     const entity_type = document.getElementById('cf-entity').value;
     const { error } = await sb.from('companies').update({ name, cr_number, entity_type }).eq('id', company.id);
     document.getElementById('cf-msg').innerHTML = error ? `<div class="msg err">تعذر الحفظ: ${error.message}</div>` : `<div class="msg ok">تم تحديث بيانات المنشأة بنجاح.</div>`;
+  });
+
+  document.getElementById('companyCreateForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector('button[type=submit]');
+    btn.disabled = true; btn.textContent = 'جاري الحفظ...';
+    const name = document.getElementById('ccf-name').value.trim();
+    const cr_number = document.getElementById('ccf-cr').value.trim();
+    const entity_type = document.getElementById('ccf-entity').value;
+    const msgEl = document.getElementById('ccf-msg');
+
+    const { data: newCompany, error } = await sb.from('companies').insert({ name, cr_number, entity_type }).select().single();
+    if (error) { msgEl.innerHTML = `<div class="msg err">تعذر الحفظ: ${error.message}</div>`; btn.disabled = false; btn.textContent = 'حفظ بيانات المنشأة ←'; return; }
+
+    const { error: linkErr } = await sb.from('profiles').update({ company_id: newCompany.id }).eq('id', CURRENT_USER.id);
+    if (linkErr) { msgEl.innerHTML = `<div class="msg err">تعذر الربط: ${linkErr.message}</div>`; btn.disabled = false; btn.textContent = 'حفظ بيانات المنشأة ←'; return; }
+
+    CURRENT_PROFILE.company_id = newCompany.id;
+    msgEl.innerHTML = `<div class="msg ok">تم حفظ بيانات منشأتك. بانتظار تفعيل الإدارة قبل إرسال الطلبات.</div>`;
+    renderClientProfile();
   });
 }
 
