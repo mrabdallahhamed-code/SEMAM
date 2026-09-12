@@ -615,14 +615,16 @@ async function renderClientServicePage(serviceId) {
     listEl.appendChild(card);
   }
   listEl.querySelectorAll('[data-approve]').forEach(btn => btn.addEventListener('click', async () => {
-    await sb.from('drafts').update({ status: 'approved_by_client' }).eq('id', btn.dataset.approve);
+    const { error } = await sb.from('drafts').update({ status: 'approved_by_client' }).eq('id', btn.dataset.approve);
+    if (error) { alert('تعذر الاعتماد: ' + error.message); return; }
     await sb.from('requests').update({ status: 'completed' }).eq('id', btn.dataset.req);
     renderClientServicePage(serviceId);
   }));
   listEl.querySelectorAll('[data-revise]').forEach(btn => btn.addEventListener('click', () => { document.getElementById(`rev-form-${btn.dataset.revise}`).style.display = 'block'; }));
   listEl.querySelectorAll('[data-send-revision]').forEach(btn => btn.addEventListener('click', async () => {
     const notes = document.getElementById(`rev-notes-${btn.dataset.sendRevision}`).value.trim();
-    await sb.from('drafts').update({ status: 'client_revision_requested', client_notes: notes }).eq('id', btn.dataset.sendRevision);
+    const { error } = await sb.from('drafts').update({ status: 'client_revision_requested', client_notes: notes }).eq('id', btn.dataset.sendRevision);
+    if (error) { alert('تعذر إرسال طلب التعديل: ' + error.message); return; }
     await sb.from('requests').update({ status: 'client_revision_requested' }).eq('id', btn.dataset.req);
     renderClientServicePage(serviceId);
   }));
