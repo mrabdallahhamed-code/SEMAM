@@ -13,17 +13,38 @@
     --warn-bg:#fdf3e3; --warn-t:#8a5a00; --ok-bg:#eaf5ee; --ok-t:#1e6b3a; --err-bg:#fdecec; --err-t:#b3261e;
   }
   *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'Tajawal',sans-serif;background:var(--off);color:var(--t);min-height:100vh}
-  .topbar{background:var(--g);padding:.9rem 1.5rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:20}
-  .topbar-l{display:flex;align-items:center;gap:.7rem}
-  .topbar img{width:36px;height:auto}
-  .topbar .tn{color:#fff;font-size:.95rem;font-weight:700}
-  .topbar .tr{color:var(--gold2);font-size:.7rem}
-  .topbar-r{display:flex;align-items:center;gap:.7rem;position:relative}
-  .who{color:rgba(255,255,255,.85);font-size:.82rem}
-  .logout{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.2);padding:.45rem .9rem;border-radius:8px;font-family:inherit;font-size:.78rem;cursor:pointer}
-  .logout:hover{background:rgba(255,255,255,.2)}
-  .bell{position:relative;cursor:pointer;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:8px;padding:.5rem .7rem;color:#fff;font-size:.9rem}
+  html,body{height:100%}
+  body{font-family:'Tajawal',sans-serif;background:var(--off);color:var(--t)}
+  .shell{display:flex;min-height:100vh}
+
+  .sidebar{width:230px;background:var(--g);flex-shrink:0;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+  .sb-brand{display:flex;align-items:center;gap:.6rem;padding:1.2rem 1.1rem;border-bottom:1px solid rgba(255,255,255,.1)}
+  .sb-brand img{width:32px;height:auto}
+  .sb-brand .n{color:#fff;font-size:.9rem;font-weight:700}
+  .sb-brand .r{color:var(--gold2);font-size:.65rem}
+  .sb-nav{flex:1;padding:1rem .7rem;overflow-y:auto}
+  .sb-item{display:block;padding:.7rem .9rem;border-radius:8px;color:rgba(255,255,255,.75);font-size:.85rem;font-weight:500;cursor:pointer;margin-bottom:.2rem;transition:all .15s;user-select:none}
+  .sb-item:hover{background:rgba(255,255,255,.08);color:#fff}
+  .sb-item.active{background:rgba(255,255,255,.14);color:#fff;font-weight:700;border-right:3px solid var(--gold)}
+  .sb-sect{font-size:.65rem;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.06em;padding:1rem .9rem .3rem;font-weight:700}
+  .sb-foot{padding:1rem;border-top:1px solid rgba(255,255,255,.1)}
+  .sb-who{color:rgba(255,255,255,.85);font-size:.78rem;margin-bottom:.6rem}
+  .logout{width:100%;background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.18);padding:.55rem;border-radius:8px;font-family:inherit;font-size:.78rem;cursor:pointer}
+  .logout:hover{background:rgba(255,255,255,.18)}
+
+  .topbar{display:none;background:var(--g);padding:.8rem 1rem;align-items:center;justify-content:space-between}
+  .hamburger{color:#fff;font-size:1.3rem;background:none;border:none;cursor:pointer}
+  @media(max-width:860px){
+    .sidebar{position:fixed;right:-240px;top:0;z-index:50;transition:right .25s;box-shadow:0 0 30px rgba(0,0,0,.3)}
+    .sidebar.open{right:0}
+    .topbar{display:flex}
+    .main{width:100%}
+  }
+
+  .main{flex:1;min-width:0}
+  .main-top{background:#fff;border-bottom:1px solid var(--bd);padding:.9rem 1.8rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
+  .page-title{font-size:1.05rem;font-weight:800}
+  .bell{position:relative;cursor:pointer;background:var(--off);border:1px solid var(--bd);border-radius:8px;padding:.5rem .7rem;font-size:.9rem}
   .bell .dot{position:absolute;top:-4px;left:-4px;background:#e05a4e;color:#fff;font-size:.62rem;font-weight:700;border-radius:100px;padding:.05rem .35rem;min-width:16px;text-align:center}
   .notif-panel{position:absolute;top:calc(100% + 8px);left:0;background:#fff;border:1px solid var(--bd);border-radius:12px;width:320px;max-height:400px;overflow-y:auto;box-shadow:0 10px 30px rgba(0,0,0,.15);display:none;z-index:30}
   .notif-panel.open{display:block}
@@ -31,7 +52,8 @@
   .notif-item:last-child{border-bottom:none}
   .notif-item.unread{background:var(--off);font-weight:700}
   .notif-item .time{font-size:.68rem;color:var(--t3);margin-top:.25rem;font-weight:400}
-  .wrap{max-width:960px;margin:0 auto;padding:1.5rem}
+
+  .wrap{max-width:960px;margin:0 auto;padding:1.5rem 1.8rem}
   .section-title{font-size:1rem;font-weight:800;margin:1.6rem 0 .8rem;display:flex;align-items:center;gap:.5rem}
   .section-title:first-child{margin-top:0}
   .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:.7rem;margin-bottom:1.5rem}
@@ -42,6 +64,7 @@
   .req-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.6rem}
   .req-title{font-size:.9rem;font-weight:700}
   .req-meta{font-size:.75rem;color:var(--t3);margin-top:.2rem}
+  .company-chip{display:inline-flex;align-items:center;gap:.3rem;font-size:.7rem;font-weight:700;color:var(--g);background:var(--off);border:1px solid var(--bd);padding:.2rem .6rem;border-radius:100px;margin-top:.3rem}
   .badge{font-size:.72rem;font-weight:700;padding:.3rem .7rem;border-radius:100px;white-space:nowrap}
   .b-new{background:#eef1f4;color:#445}
   .b-progress{background:var(--warn-bg);color:var(--warn-t)}
@@ -49,6 +72,8 @@
   .b-approval{background:var(--warn-bg);color:var(--warn-t)}
   .b-revision{background:var(--err-bg);color:var(--err-t)}
   .b-done{background:var(--ok-bg);color:var(--ok-t)}
+  .b-pending{background:var(--warn-bg);color:var(--warn-t)}
+  .b-active{background:var(--ok-bg);color:var(--ok-t)}
   .live-pill{display:inline-flex;align-items:center;gap:.4rem;background:var(--ok-bg);color:var(--ok-t);font-size:.72rem;font-weight:700;padding:.3rem .7rem;border-radius:100px}
   .live-dot{width:7px;height:7px;border-radius:50%;background:var(--ok-t);animation:pulse 1.5s infinite}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
@@ -59,6 +84,10 @@
   .btn-o:hover{background:var(--off)}
   .btn-danger{background:var(--err-bg);color:var(--err-t);border:1px solid #f3c9c6}
   .btn-sm{padding:.4rem .8rem;font-size:.75rem}
+  .upload-row{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+  .file-label{display:inline-flex;align-items:center;gap:.4rem;background:var(--off);border:1px dashed var(--bd);border-radius:8px;padding:.5rem .8rem;font-size:.78rem;cursor:pointer;color:var(--t2)}
+  .file-label:hover{background:#eee}
+  .file-label input{display:none}
   form.new-req{display:grid;gap:.8rem}
   label{font-size:.78rem;font-weight:700;color:var(--t2);display:block;margin-bottom:.3rem}
   input,textarea,select{width:100%;padding:.65rem .8rem;border:1px solid var(--bd);border-radius:8px;font-family:inherit;font-size:.85rem;background:var(--off)}
@@ -77,23 +106,31 @@
 </style>
 </head>
 <body>
-  <div class="topbar">
-    <div class="topbar-l">
-      <img src="assets/logo.png" alt="صمام">
-      <div><div class="tn">صمام</div><div class="tr">من إتقان لخدمات الأعمال</div></div>
+
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="sb-brand"><img src="assets/logo.png" alt="صمام"><div><div class="n">صمام</div><div class="r">من إتقان</div></div></div>
+    <nav class="sb-nav" id="sbNav"></nav>
+    <div class="sb-foot">
+      <div class="sb-who" id="whoami">...</div>
+      <button class="logout" id="logoutBtn">تسجيل الخروج</button>
     </div>
-    <div class="topbar-r">
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <button class="hamburger" id="hamburger">☰</button>
+      <img src="assets/logo.png" alt="صمام" style="width:28px">
+    </div>
+    <div class="main-top">
+      <div class="page-title" id="pageTitle">لوحة التحكم</div>
       <div class="bell" id="bellBtn">🔔<span class="dot" id="bellCount" style="display:none">0</span>
         <div class="notif-panel" id="notifPanel"></div>
       </div>
-      <span class="who" id="whoami">...</span>
-      <button class="logout" id="logoutBtn">تسجيل الخروج</button>
     </div>
+    <div class="wrap" id="app"><div class="loading">جاري التحميل...</div></div>
   </div>
-
-  <div class="wrap" id="app">
-    <div class="loading">جاري التحميل...</div>
-  </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
@@ -102,18 +139,14 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const STATUS_LABELS = {
-  new: ['جديد', 'b-new'],
-  assigned: ['مُسند', 'b-new'],
-  in_progress: ['قيد التنفيذ', 'b-progress'],
-  pending_admin_review: ['بانتظار مراجعة المدير', 'b-review'],
-  pending_client_approval: ['بانتظار اعتمادك', 'b-approval'],
-  client_revision_requested: ['طلب تعديل', 'b-revision'],
-  completed: ['مكتمل', 'b-done'],
+  new: ['جديد', 'b-new'], assigned: ['مُسند', 'b-new'], in_progress: ['قيد التنفيذ', 'b-progress'],
+  pending_admin_review: ['بانتظار مراجعة المدير', 'b-review'], pending_client_approval: ['بانتظار اعتمادك', 'b-approval'],
+  client_revision_requested: ['طلب تعديل', 'b-revision'], completed: ['مكتمل', 'b-done'],
 };
 
 const app = document.getElementById('app');
-let CURRENT_USER = null;
-let CURRENT_PROFILE = null;
+let CURRENT_USER = null, CURRENT_PROFILE = null, CURRENT_COMPANY = null, ALL_SERVICES = [];
+let currentView = 'dashboard';
 let rerenderTimeout = null;
 
 async function init() {
@@ -122,17 +155,35 @@ async function init() {
   CURRENT_USER = session.user;
 
   const { data: profile, error } = await sb.from('profiles').select('*').eq('id', CURRENT_USER.id).single();
-  if (error || !profile) {
-    app.innerHTML = `<div class="msg err">تعذر تحميل بيانات حسابك. تواصل مع الإدارة.</div>`;
-    return;
-  }
+  if (error || !profile) { app.innerHTML = `<div class="msg err">تعذر تحميل بيانات حسابك. تواصل مع الإدارة.</div>`; return; }
   CURRENT_PROFILE = profile;
-  document.getElementById('whoami').textContent = `${profile.full_name} · ${roleLabel(profile.role)}`;
 
-  rerenderCurrentRole();
+  await ensureCompanyLinked();
+
+  const { data: services } = await sb.from('services').select('*').eq('is_active', true);
+  ALL_SERVICES = services || [];
+
+  document.getElementById('whoami').textContent = `${profile.full_name} · ${roleLabel(profile.role)}`;
+  renderSidebar();
   loadNotifications();
   setupRealtime();
-  setupBell();
+  setupChrome();
+}
+
+async function ensureCompanyLinked() {
+  if (CURRENT_PROFILE.role !== 'client' || CURRENT_PROFILE.company_id) return;
+  const key = 'samam_pending_company_' + CURRENT_USER.id;
+  const raw = localStorage.getItem(key);
+  if (!raw) return;
+  try {
+    const info = JSON.parse(raw);
+    const { data: company, error } = await sb.from('companies').insert(info).select().single();
+    if (!error && company) {
+      await sb.from('profiles').update({ company_id: company.id }).eq('id', CURRENT_USER.id);
+      CURRENT_PROFILE.company_id = company.id;
+      localStorage.removeItem(key);
+    }
+  } catch (e) {}
 }
 
 function roleLabel(r) { return { client: 'عميل', staff: 'فريق العمل', admin: 'إدارة' }[r] || r; }
@@ -146,75 +197,84 @@ function timeAgo(d) {
   if (diff < 86400) return `منذ ${Math.floor(diff/3600)} س`;
   return fmtDate(d);
 }
+function companyChip(c) { return c ? `<span class="company-chip">🏢 ${c.name}${c.cr_number ? ' · '+c.cr_number : ''}</span>` : ''; }
 
-function rerenderCurrentRole() {
-  if (!CURRENT_PROFILE) return;
-  if (CURRENT_PROFILE.role === 'admin') renderAdmin();
-  else if (CURRENT_PROFILE.role === 'staff') renderStaff();
-  else renderClient();
+function setupChrome() {
+  document.getElementById('logoutBtn').addEventListener('click', async () => { await sb.auth.signOut(); window.location.href = 'index.html'; });
+  document.getElementById('hamburger').addEventListener('click', () => document.getElementById('sidebar').classList.toggle('open'));
+  const bellBtn = document.getElementById('bellBtn'), panel = document.getElementById('notifPanel');
+  bellBtn.addEventListener('click', () => panel.classList.toggle('open'));
+  document.addEventListener('click', (e) => { if (!bellBtn.contains(e.target)) panel.classList.remove('open'); });
 }
 
-document.getElementById('logoutBtn').addEventListener('click', async () => {
-  await sb.auth.signOut();
-  window.location.href = 'index.html';
-});
-
-// =====================================================================
-// NOTIFICATIONS (shared across all 3 roles)
-// =====================================================================
-function setupBell() {
-  const bellBtn = document.getElementById('bellBtn');
-  const panel = document.getElementById('notifPanel');
-  bellBtn.addEventListener('click', (e) => {
-    panel.classList.toggle('open');
-  });
-  document.addEventListener('click', (e) => {
-    if (!bellBtn.contains(e.target)) panel.classList.remove('open');
-  });
+function navigate(view, label) {
+  currentView = view;
+  document.getElementById('pageTitle').textContent = label;
+  document.querySelectorAll('.sb-item').forEach(el => el.classList.toggle('active', el.dataset.view === view));
+  document.getElementById('sidebar').classList.remove('open');
+  renderContent();
 }
+
+function renderSidebar() {
+  const nav = document.getElementById('sbNav');
+  let html = `<div class="sb-item" data-view="dashboard">لوحة التحكم</div>`;
+  if (CURRENT_PROFILE.role === 'client') {
+    html += `<div class="sb-sect">خدماتنا</div>`;
+    ALL_SERVICES.forEach(s => { html += `<div class="sb-item" data-view="service:${s.id}">${s.name_ar}</div>`; });
+  } else if (CURRENT_PROFILE.role === 'staff') {
+    html += `<div class="sb-item" data-view="tasks">مهامي</div>`;
+  } else if (CURRENT_PROFILE.role === 'admin') {
+    html += `<div class="sb-item" data-view="requests">كل الطلبات</div>`;
+    html += `<div class="sb-item" data-view="drafts">تدقيق المسودات</div>`;
+    html += `<div class="sb-item" data-view="companies">الشركات</div>`;
+  }
+  nav.innerHTML = html;
+  nav.querySelectorAll('.sb-item').forEach(el => el.addEventListener('click', () => navigate(el.dataset.view, el.textContent)));
+  navigate(currentView, currentView === 'dashboard' ? 'لوحة التحكم' : '');
+}
+
+function renderContent() {
+  if (CURRENT_PROFILE.role === 'client') {
+    if (currentView === 'dashboard') renderClientDashboard();
+    else if (currentView.startsWith('service:')) renderClientServicePage(currentView.split(':')[1]);
+  } else if (CURRENT_PROFILE.role === 'staff') {
+    renderStaff();
+  } else if (CURRENT_PROFILE.role === 'admin') {
+    if (currentView === 'dashboard') renderAdminDashboard();
+    else if (currentView === 'requests') renderAdminRequests();
+    else if (currentView === 'drafts') renderAdminDrafts();
+    else if (currentView === 'companies') renderAdminCompanies();
+  }
+}
+function rerenderCurrentRole() { if (CURRENT_PROFILE) renderContent(); }
 
 async function loadNotifications() {
   const { data: notifs } = await sb.from('notifications').select('*').eq('recipient_id', CURRENT_USER.id).order('created_at', { ascending: false }).limit(20);
-  const panel = document.getElementById('notifPanel');
-  const countEl = document.getElementById('bellCount');
+  const panel = document.getElementById('notifPanel'), countEl = document.getElementById('bellCount');
   const unread = (notifs || []).filter(n => !n.is_read).length;
   countEl.style.display = unread > 0 ? 'block' : 'none';
   countEl.textContent = unread;
-
   panel.innerHTML = (notifs && notifs.length)
-    ? notifs.map(n => `
-        <div class="notif-item ${!n.is_read ? 'unread' : ''}" data-notif="${n.id}">
-          ${n.message}
-          <div class="time">${timeAgo(n.created_at)}</div>
-        </div>`).join('')
+    ? notifs.map(n => `<div class="notif-item ${!n.is_read?'unread':''}" data-notif="${n.id}">${n.message}<div class="time">${timeAgo(n.created_at)}</div></div>`).join('')
     : `<div class="notif-item">لا توجد إشعارات بعد.</div>`;
-
   panel.querySelectorAll('[data-notif]').forEach(el => el.addEventListener('click', async () => {
     await sb.from('notifications').update({ is_read: true }).eq('id', el.dataset.notif);
     loadNotifications();
   }));
 }
 
-// =====================================================================
-// REALTIME — auto-refresh the view when relevant data changes
-// =====================================================================
 function setupRealtime() {
-  const debouncedRerender = () => {
-    clearTimeout(rerenderTimeout);
-    rerenderTimeout = setTimeout(rerenderCurrentRole, 400);
-  };
+  const debounced = () => { clearTimeout(rerenderTimeout); rerenderTimeout = setTimeout(rerenderCurrentRole, 400); };
   sb.channel('samam-live-changes')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'requests' }, debouncedRerender)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'drafts' }, debouncedRerender)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'task_timer_logs' }, debouncedRerender)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'request_attachments' }, debouncedRerender)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'requests' }, debounced)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'drafts' }, debounced)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'task_timer_logs' }, debounced)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'request_attachments' }, debounced)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'companies' }, debounced)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, loadNotifications)
     .subscribe();
 }
 
-// =====================================================================
-// SHARED HELPER: attachments list with signed (temporary) download links
-// =====================================================================
 async function attachmentsHtml(requestId) {
   const { data: atts } = await sb.from('request_attachments').select('*').eq('request_id', requestId);
   if (!atts || atts.length === 0) return '';
@@ -225,77 +285,122 @@ async function attachmentsHtml(requestId) {
   return links.join('');
 }
 
-// =====================================================================
-// CLIENT DASHBOARD
-// =====================================================================
-async function renderClient() {
-  const { data: requests } = await sb.from('requests').select('*, services(name_ar)').eq('client_id', CURRENT_USER.id).order('created_at', { ascending: false });
-  const { data: services } = await sb.from('services').select('*').eq('is_active', true);
+function uploadWidgetHtml(idPrefix) {
+  return `
+    <div class="upload-row">
+      <label class="file-label">📎 إرفاق ملف<input type="file" multiple id="${idPrefix}-files"></label>
+      <label class="file-label">📷 التقاط صورة<input type="file" accept="image/*" capture="environment" id="${idPrefix}-camera"></label>
+    </div>
+    <div id="${idPrefix}-filenames" class="req-meta" style="margin-top:.4rem"></div>
+  `;
+}
+function wireUploadWidgetPreview(idPrefix) {
+  const namesEl = document.getElementById(`${idPrefix}-filenames`);
+  const update = () => {
+    const f1 = [...(document.getElementById(`${idPrefix}-files`)?.files || [])];
+    const f2 = [...(document.getElementById(`${idPrefix}-camera`)?.files || [])];
+    const names = [...f1, ...f2].map(f => f.name);
+    namesEl.textContent = names.length ? `تم اختيار: ${names.join('، ')}` : '';
+  };
+  document.getElementById(`${idPrefix}-files`)?.addEventListener('change', update);
+  document.getElementById(`${idPrefix}-camera`)?.addEventListener('change', update);
+}
+function collectUploadFiles(idPrefix) {
+  const f1 = [...(document.getElementById(`${idPrefix}-files`)?.files || [])];
+  const f2 = [...(document.getElementById(`${idPrefix}-camera`)?.files || [])];
+  return [...f1, ...f2];
+}
 
+async function renderClientDashboard() {
+  if (CURRENT_PROFILE.company_id) {
+    const { data: company } = await sb.from('companies').select('*').eq('id', CURRENT_PROFILE.company_id).single();
+    CURRENT_COMPANY = company;
+  }
+  const { data: requests } = await sb.from('requests').select('*, services(name_ar)').eq('client_id', CURRENT_USER.id).order('created_at', { ascending: false });
   const counts = { pending_client_approval: 0, in_progress: 0, completed: 0 };
   (requests || []).forEach(r => { if (counts[r.status] !== undefined) counts[r.status]++; });
 
   app.innerHTML = `
+    ${CURRENT_COMPANY ? `
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.6rem">
+        <div>
+          <div class="req-title">🏢 ${CURRENT_COMPANY.name}</div>
+          <div class="req-meta">السجل التجاري: ${CURRENT_COMPANY.cr_number || '—'} · ${CURRENT_COMPANY.entity_type || ''}</div>
+        </div>
+        ${CURRENT_COMPANY.is_active ? `<span class="badge b-active">منشأة مفعّلة</span>` : `<span class="badge b-pending">بانتظار تفعيل الإدارة</span>`}
+      </div>
+      ${!CURRENT_COMPANY.is_active ? `<div class="msg err">حسابك بانتظار تفعيل الإدارة قبل أن تتمكن من إرسال طلبات جديدة. سيتم إشعارك فور التفعيل.</div>` : ''}
+    ` : ''}
+
     <div class="stats">
       <div class="stat"><div class="n">${counts.pending_client_approval}</div><div class="l">بانتظار اعتمادك</div></div>
       <div class="stat"><div class="n">${counts.in_progress}</div><div class="l">قيد التنفيذ</div></div>
       <div class="stat"><div class="n">${counts.completed}</div><div class="l">مكتملة</div></div>
     </div>
 
-    <div class="section-title">طلب جديد</div>
+    <div class="section-title">آخر الطلبات (كل الخدمات)</div>
+    <div id="reqList"></div>
+  `;
+
+  const listEl = document.getElementById('reqList');
+  if (!requests || requests.length === 0) { listEl.innerHTML = `<div class="empty">لا توجد طلبات بعد. اختر خدمة من القائمة الجانبية لإرسال طلبك الأول.</div>`; return; }
+  requests.slice(0, 8).forEach(r => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `<div class="req-row"><div><div class="req-title">${r.title}</div><div class="req-meta">${r.services?.name_ar||''} · ${fmtDate(r.created_at)}</div></div>${statusBadge(r.status)}</div>`;
+    listEl.appendChild(card);
+  });
+}
+
+async function renderClientServicePage(serviceId) {
+  const service = ALL_SERVICES.find(s => s.id === serviceId);
+  const companyActive = CURRENT_COMPANY ? CURRENT_COMPANY.is_active : false;
+  const { data: requests } = await sb.from('requests').select('*, services(name_ar)').eq('client_id', CURRENT_USER.id).eq('service_id', serviceId).order('created_at', { ascending: false });
+
+  app.innerHTML = `
+    <div class="section-title">طلب جديد — ${service?.name_ar || ''}</div>
     <div class="card">
+      ${!companyActive ? `<div class="msg err">لا يمكنك إرسال طلبات جديدة حتى تفعّل الإدارة حساب منشأتك.</div>` : ''}
       <form class="new-req" id="newReqForm">
-        <div><label>الخدمة</label><select id="nr-service" required>
-          <option value="">اختر الخدمة...</option>
-          ${(services || []).map(s => `<option value="${s.id}">${s.name_ar}</option>`).join('')}
-        </select></div>
         <div><label>عنوان الطلب</label><input id="nr-title" required placeholder="مثال: مراجعة فواتير شهر سبتمبر"></div>
         <div><label>تفاصيل إضافية</label><textarea id="nr-desc" placeholder="أي تفاصيل تساعد فريقنا..."></textarea></div>
-        <div><label>إرفاق مستندات (اختياري)</label><input id="nr-files" type="file" multiple></div>
-        <button type="submit" class="btn btn-g" id="nr-submit">إرسال الطلب ←</button>
+        <div><label>المرفقات (اختياري)</label>${uploadWidgetHtml('nr')}</div>
+        <button type="submit" class="btn btn-g" id="nr-submit" ${!companyActive ? 'disabled' : ''}>إرسال الطلب ←</button>
       </form>
       <div id="nr-msg"></div>
     </div>
-
-    <div class="section-title">طلباتي</div>
+    <div class="section-title">طلباتي — ${service?.name_ar || ''}</div>
     <div id="reqList"></div>
   `;
+  wireUploadWidgetPreview('nr');
 
   document.getElementById('newReqForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = document.getElementById('nr-submit');
     btn.disabled = true; btn.textContent = 'جاري الإرسال...';
-    const service_id = document.getElementById('nr-service').value;
     const title = document.getElementById('nr-title').value.trim();
     const description = document.getElementById('nr-desc').value.trim();
-    const files = document.getElementById('nr-files').files;
+    const files = collectUploadFiles('nr');
     const msgEl = document.getElementById('nr-msg');
 
     const { data: newReq, error } = await sb.from('requests')
-      .insert({ client_id: CURRENT_USER.id, service_id, title, description, status: 'new' })
+      .insert({ client_id: CURRENT_USER.id, company_id: CURRENT_PROFILE.company_id, service_id: serviceId, title, description, status: 'new' })
       .select().single();
 
-    if (error) {
-      msgEl.innerHTML = `<div class="msg err">تعذر إرسال الطلب: ${error.message}</div>`;
-      btn.disabled = false; btn.textContent = 'إرسال الطلب ←';
-      return;
-    }
+    if (error) { msgEl.innerHTML = `<div class="msg err">تعذر إرسال الطلب: ${error.message}</div>`; btn.disabled = false; btn.textContent = 'إرسال الطلب ←'; return; }
 
     for (const file of files) {
       const path = `${newReq.id}/${Date.now()}_${file.name}`;
       const { error: upErr } = await sb.storage.from('client-uploads').upload(path, file);
-      if (!upErr) {
-        await sb.from('request_attachments').insert({ request_id: newReq.id, uploaded_by: CURRENT_USER.id, file_path: path, file_name: file.name });
-      }
+      if (!upErr) await sb.from('request_attachments').insert({ request_id: newReq.id, uploaded_by: CURRENT_USER.id, file_path: path, file_name: file.name });
     }
-
     msgEl.innerHTML = `<div class="msg ok">تم إرسال طلبك بنجاح.</div>`;
     e.target.reset();
-    renderClient();
+    renderClientServicePage(serviceId);
   });
 
   const listEl = document.getElementById('reqList');
-  if (!requests || requests.length === 0) { listEl.innerHTML = `<div class="empty">لا توجد طلبات بعد.</div>`; return; }
+  if (!requests || requests.length === 0) { listEl.innerHTML = `<div class="empty">لا توجد طلبات بهذه الخدمة بعد.</div>`; return; }
 
   for (const r of requests) {
     const { data: drafts } = await sb.from('drafts').select('*').eq('request_id', r.id).order('version', { ascending: false });
@@ -307,14 +412,8 @@ async function renderClient() {
     card.className = 'card';
     card.innerHTML = `
       <div class="req-row">
-        <div>
-          <div class="req-title">${r.title}</div>
-          <div class="req-meta">${r.services?.name_ar || ''} · ${fmtDate(r.created_at)}</div>
-        </div>
-        <div style="display:flex;gap:.5rem;align-items:center">
-          ${openTimer ? `<span class="live-pill"><span class="live-dot"></span>الموظف يعمل الآن</span>` : ''}
-          ${statusBadge(r.status)}
-        </div>
+        <div><div class="req-title">${r.title}</div><div class="req-meta">${fmtDate(r.created_at)}</div></div>
+        <div style="display:flex;gap:.5rem;align-items:center">${openTimer ? `<span class="live-pill"><span class="live-dot"></span>الموظف يعمل الآن</span>` : ''}${statusBadge(r.status)}</div>
       </div>
       ${attachHtml}
       ${visibleDraft ? `
@@ -328,52 +427,42 @@ async function renderClient() {
             <div id="rev-form-${visibleDraft.id}" style="display:none;margin-top:.6rem">
               <textarea id="rev-notes-${visibleDraft.id}" placeholder="اكتب ملاحظاتك..."></textarea>
               <button class="btn btn-g btn-sm" style="margin-top:.5rem" data-send-revision="${visibleDraft.id}" data-req="${r.id}">إرسال الملاحظات ←</button>
-            </div>
-          ` : ''}
-        </div>
-      ` : ''}
+            </div>` : ''}
+        </div>` : ''}
     `;
     listEl.appendChild(card);
   }
-
   listEl.querySelectorAll('[data-approve]').forEach(btn => btn.addEventListener('click', async () => {
     await sb.from('drafts').update({ status: 'approved_by_client' }).eq('id', btn.dataset.approve);
     await sb.from('requests').update({ status: 'completed' }).eq('id', btn.dataset.req);
-    renderClient();
+    renderClientServicePage(serviceId);
   }));
-  listEl.querySelectorAll('[data-revise]').forEach(btn => btn.addEventListener('click', () => {
-    document.getElementById(`rev-form-${btn.dataset.revise}`).style.display = 'block';
-  }));
+  listEl.querySelectorAll('[data-revise]').forEach(btn => btn.addEventListener('click', () => { document.getElementById(`rev-form-${btn.dataset.revise}`).style.display = 'block'; }));
   listEl.querySelectorAll('[data-send-revision]').forEach(btn => btn.addEventListener('click', async () => {
-    const draftId = btn.dataset.sendRevision, reqId = btn.dataset.req;
-    const notes = document.getElementById(`rev-notes-${draftId}`).value.trim();
-    await sb.from('drafts').update({ status: 'client_revision_requested', client_notes: notes }).eq('id', draftId);
-    await sb.from('requests').update({ status: 'client_revision_requested' }).eq('id', reqId);
-    renderClient();
+    const notes = document.getElementById(`rev-notes-${btn.dataset.sendRevision}`).value.trim();
+    await sb.from('drafts').update({ status: 'client_revision_requested', client_notes: notes }).eq('id', btn.dataset.sendRevision);
+    await sb.from('requests').update({ status: 'client_revision_requested' }).eq('id', btn.dataset.req);
+    renderClientServicePage(serviceId);
   }));
 }
 
-// =====================================================================
-// STAFF DASHBOARD
-// =====================================================================
 async function renderStaff() {
-  const { data: requests } = await sb.from('requests').select('*, services(name_ar), profiles!requests_client_id_fkey(full_name, company_name)').eq('assigned_staff_id', CURRENT_USER.id).order('created_at', { ascending: false });
-
-  app.innerHTML = `<div class="section-title">مهامي</div><div id="taskList"></div>`;
+  const { data: requests } = await sb.from('requests').select('*, services(name_ar), companies(name, cr_number)').eq('assigned_staff_id', CURRENT_USER.id).order('created_at', { ascending: false });
+  app.innerHTML = `<div id="taskList"></div>`;
   const listEl = document.getElementById('taskList');
   if (!requests || requests.length === 0) { listEl.innerHTML = `<div class="empty">لا توجد مهام مسندة إليك حالياً.</div>`; return; }
 
   for (const r of requests) {
     const { data: openTimer } = await sb.from('task_timer_logs').select('*').eq('request_id', r.id).eq('staff_id', CURRENT_USER.id).is('ended_at', null).maybeSingle();
     const attachHtml = await attachmentsHtml(r.id);
-
     const card = document.createElement('div');
     card.className = 'card';
     card.innerHTML = `
       <div class="req-row">
         <div>
           <div class="req-title">${r.title}</div>
-          <div class="req-meta">${r.services?.name_ar || ''} · ${r.profiles?.company_name || r.profiles?.full_name || ''}</div>
+          <div class="req-meta">${r.services?.name_ar || ''}</div>
+          ${companyChip(r.companies)}
         </div>
         ${statusBadge(r.status)}
       </div>
@@ -382,50 +471,47 @@ async function renderStaff() {
       <div style="margin-top:.8rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
         ${!openTimer ? `<button class="btn btn-g btn-sm" data-start="${r.id}">بدء التنفيذ ←</button>`
                      : `<span class="live-pill"><span class="live-dot"></span>يعمل الآن</span><button class="btn btn-danger btn-sm" data-stop="${openTimer.id}" data-req="${r.id}">إنهاء الجلسة</button>`}
-        <label style="margin-right:.5rem;font-size:.75rem">رفع مسودة: <input type="file" data-upload-draft="${r.id}" style="display:inline"></label>
+      </div>
+      <div style="margin-top:.7rem">${uploadWidgetHtml('draft-'+r.id)}
+        <button class="btn btn-o btn-sm" style="margin-top:.5rem" data-submit-draft="${r.id}">رفع كمسودة ←</button>
       </div>
       <div id="draft-msg-${r.id}"></div>
     `;
     listEl.appendChild(card);
+    wireUploadWidgetPreview('draft-'+r.id);
   }
 
   listEl.querySelectorAll('[data-start]').forEach(btn => btn.addEventListener('click', async () => {
-    const reqId = btn.dataset.start;
-    await sb.from('task_timer_logs').insert({ request_id: reqId, staff_id: CURRENT_USER.id });
-    await sb.from('requests').update({ status: 'in_progress' }).eq('id', reqId);
+    await sb.from('task_timer_logs').insert({ request_id: btn.dataset.start, staff_id: CURRENT_USER.id });
+    await sb.from('requests').update({ status: 'in_progress' }).eq('id', btn.dataset.start);
     renderStaff();
   }));
   listEl.querySelectorAll('[data-stop]').forEach(btn => btn.addEventListener('click', async () => {
     await sb.from('task_timer_logs').update({ ended_at: new Date().toISOString() }).eq('id', btn.dataset.stop);
     renderStaff();
   }));
-  listEl.querySelectorAll('[data-upload-draft]').forEach(input => input.addEventListener('change', async (e) => {
-    const reqId = input.dataset.uploadDraft;
-    const file = e.target.files[0];
-    if (!file) return;
+  listEl.querySelectorAll('[data-submit-draft]').forEach(btn => btn.addEventListener('click', async () => {
+    const reqId = btn.dataset.submitDraft;
+    const files = collectUploadFiles('draft-'+reqId);
+    const msgEl = document.getElementById(`draft-msg-${reqId}`);
+    if (!files.length) { msgEl.innerHTML = `<div class="msg err">اختر ملفاً أولاً.</div>`; return; }
+    const file = files[0];
     const path = `${reqId}/${Date.now()}_${file.name}`;
     const { error: upErr } = await sb.storage.from('drafts').upload(path, file);
-    const msgEl = document.getElementById(`draft-msg-${reqId}`);
     if (upErr) { msgEl.innerHTML = `<div class="msg err">فشل رفع الملف: ${upErr.message}</div>`; return; }
-
     const { data: existing } = await sb.from('drafts').select('version').eq('request_id', reqId).order('version', { ascending: false }).limit(1);
     const nextVersion = existing && existing[0] ? existing[0].version + 1 : 1;
     const { error: draftErr } = await sb.from('drafts').insert({ request_id: reqId, version: nextVersion, file_path: path, submitted_by: CURRENT_USER.id });
     if (draftErr) { msgEl.innerHTML = `<div class="msg err">فشل تسجيل المسودة: ${draftErr.message}</div>`; return; }
-
     await sb.from('requests').update({ status: 'pending_admin_review' }).eq('id', reqId);
     msgEl.innerHTML = `<div class="msg ok">تم رفع المسودة، بانتظار مراجعة المدير.</div>`;
   }));
 }
 
-// =====================================================================
-// ADMIN DASHBOARD
-// =====================================================================
-async function renderAdmin() {
-  const [{ data: requests }, { data: staffList }, { data: pendingDrafts }, { data: activeTimers }, { data: completedLogs }] = await Promise.all([
-    sb.from('requests').select('*, services(name_ar), profiles!requests_client_id_fkey(full_name, company_name)').order('created_at', { ascending: false }),
-    sb.from('profiles').select('*').eq('role', 'staff').eq('is_active', true),
-    sb.from('drafts').select('*, requests(title)').eq('status', 'pending_admin_review'),
+async function renderAdminDashboard() {
+  const [{ data: requests }, { data: pendingDrafts }, { data: activeTimers }, { data: completedLogs }] = await Promise.all([
+    sb.from('requests').select('*'),
+    sb.from('drafts').select('id').eq('status', 'pending_admin_review'),
     sb.from('task_timer_logs').select('*, profiles!task_timer_logs_staff_id_fkey(full_name), requests(title)').is('ended_at', null),
     sb.from('task_timer_logs').select('*, profiles!task_timer_logs_staff_id_fkey(full_name)').not('ended_at', 'is', null),
   ]);
@@ -436,88 +522,37 @@ async function renderAdmin() {
       <div class="stat"><div class="n">${(pendingDrafts||[]).length}</div><div class="l">مسودات بانتظار مراجعتك</div></div>
       <div class="stat"><div class="n">${(activeTimers||[]).length}</div><div class="l">موظفون يعملون الآن</div></div>
     </div>
-
     <div class="section-title">👁️ من يعمل الآن</div>
     <div class="card" id="liveActivity"></div>
-
-    <div class="section-title">بوابة تدقيق المسودات</div>
-    <div id="draftReview"></div>
-
     <div class="section-title">📊 تقرير الإنتاجية</div>
     <div class="card" id="productivityReport"></div>
-
-    <div class="section-title">كل الطلبات</div>
-    <div id="allRequests"></div>
   `;
 
-  // ---- Live activity ----
-  const liveEl = document.getElementById('liveActivity');
-  liveEl.innerHTML = (activeTimers && activeTimers.length)
-    ? activeTimers.map(t => `
-        <div class="req-row" style="padding:.5rem 0">
-          <div>
-            <span class="live-pill"><span class="live-dot"></span>${t.profiles?.full_name || ''}</span>
-            <span class="req-meta" style="display:inline;margin-right:.5rem">يعمل على: ${t.requests?.title || ''}</span>
-          </div>
-          <span class="req-meta">بدأ ${timeAgo(t.started_at)}</span>
-        </div>`).join('')
+  document.getElementById('liveActivity').innerHTML = (activeTimers && activeTimers.length)
+    ? activeTimers.map(t => `<div class="req-row" style="padding:.5rem 0"><div><span class="live-pill"><span class="live-dot"></span>${t.profiles?.full_name||''}</span><span class="req-meta" style="display:inline;margin-right:.5rem">يعمل على: ${t.requests?.title||''}</span></div><span class="req-meta">بدأ ${timeAgo(t.started_at)}</span></div>`).join('')
     : `<div class="empty">لا يوجد أحد يعمل حالياً.</div>`;
 
-  // ---- Draft review queue ----
-  const draftEl = document.getElementById('draftReview');
-  if (!pendingDrafts || pendingDrafts.length === 0) {
-    draftEl.innerHTML = `<div class="empty">لا توجد مسودات بانتظار المراجعة.</div>`;
-  } else {
-    pendingDrafts.forEach(d => {
-      const card = document.createElement('div');
-      card.className = 'card';
-      card.innerHTML = `
-        <div class="req-title">${d.requests?.title || ''} — نسخة ${d.version}</div>
-        <div style="margin-top:.7rem;display:flex;gap:.5rem">
-          <button class="btn btn-g btn-sm" data-approve-draft="${d.id}" data-req="${d.request_id}">اعتماد وإرسال للعميل ←</button>
-          <button class="btn btn-danger btn-sm" data-reject-draft="${d.id}">رفض وإرجاع</button>
-        </div>
-        <div id="reject-form-${d.id}" style="display:none;margin-top:.6rem">
-          <textarea id="reject-notes-${d.id}" placeholder="سبب الرفض / ملاحظاتك للموظف..."></textarea>
-          <button class="btn btn-o btn-sm" style="margin-top:.5rem" data-send-reject="${d.id}">إرسال الرفض ←</button>
-        </div>
-      `;
-      draftEl.appendChild(card);
-    });
-    draftEl.querySelectorAll('[data-approve-draft]').forEach(btn => btn.addEventListener('click', async () => {
-      await sb.from('drafts').update({ status: 'approved_for_client' }).eq('id', btn.dataset.approveDraft);
-      await sb.from('requests').update({ status: 'pending_client_approval' }).eq('id', btn.dataset.req);
-      renderAdmin();
-    }));
-    draftEl.querySelectorAll('[data-reject-draft]').forEach(btn => btn.addEventListener('click', () => {
-      document.getElementById(`reject-form-${btn.dataset.rejectDraft}`).style.display = 'block';
-    }));
-    draftEl.querySelectorAll('[data-send-reject]').forEach(btn => btn.addEventListener('click', async () => {
-      const notes = document.getElementById(`reject-notes-${btn.dataset.sendReject}`).value.trim();
-      await sb.from('drafts').update({ status: 'rejected_by_admin', admin_notes: notes }).eq('id', btn.dataset.sendReject);
-      renderAdmin();
-    }));
-  }
-
-  // ---- Productivity report ----
-  const repEl = document.getElementById('productivityReport');
   const byStaff = {};
   (completedLogs || []).forEach(l => {
     const name = l.profiles?.full_name || 'غير معروف';
     if (!byStaff[name]) byStaff[name] = { count: 0, total: 0 };
-    byStaff[name].count++;
-    byStaff[name].total += (l.duration_seconds || 0);
+    byStaff[name].count++; byStaff[name].total += (l.duration_seconds || 0);
   });
   const rows = Object.entries(byStaff);
-  repEl.innerHTML = rows.length ? `
-    <table class="report">
-      <tr><th>الموظف</th><th>عدد المهام المنجزة</th><th>متوسط وقت الإنجاز</th></tr>
-      ${rows.map(([name, s]) => `<tr><td>${name}</td><td>${s.count}</td><td>${fmtDuration(Math.round(s.total / s.count))}</td></tr>`).join('')}
+  document.getElementById('productivityReport').innerHTML = rows.length ? `
+    <table class="report"><tr><th>الموظف</th><th>المهام المنجزة</th><th>متوسط الوقت</th></tr>
+      ${rows.map(([name,s]) => `<tr><td>${name}</td><td>${s.count}</td><td>${fmtDuration(Math.round(s.total/s.count))}</td></tr>`).join('')}
     </table>` : `<div class="empty">لا توجد بيانات إنتاجية مكتملة بعد.</div>`;
+}
 
-  // ---- All requests + assignment ----
-  const allReqEl = document.getElementById('allRequests');
-  if (!requests || requests.length === 0) { allReqEl.innerHTML = `<div class="empty">لا توجد طلبات بعد.</div>`; return; }
+async function renderAdminRequests() {
+  const [{ data: requests }, { data: staffList }] = await Promise.all([
+    sb.from('requests').select('*, services(name_ar), companies(name, cr_number)').order('created_at', { ascending: false }),
+    sb.from('profiles').select('*').eq('role', 'staff').eq('is_active', true),
+  ]);
+  app.innerHTML = `<div id="allRequests"></div>`;
+  const el = document.getElementById('allRequests');
+  if (!requests || requests.length === 0) { el.innerHTML = `<div class="empty">لا توجد طلبات بعد.</div>`; return; }
 
   for (const r of requests) {
     const needsAssignment = !r.assigned_staff_id;
@@ -526,31 +561,83 @@ async function renderAdmin() {
     card.className = 'card';
     card.innerHTML = `
       <div class="req-row">
-        <div>
-          <div class="req-title">${r.title}</div>
-          <div class="req-meta">${r.services?.name_ar||''} · ${r.profiles?.company_name || r.profiles?.full_name || ''} · ${fmtDate(r.created_at)}</div>
-        </div>
+        <div><div class="req-title">${r.title}</div><div class="req-meta">${r.services?.name_ar||''} · ${fmtDate(r.created_at)}</div>${companyChip(r.companies)}</div>
         ${statusBadge(r.status)}
       </div>
       ${attachHtml}
       ${needsAssignment ? `
         <div style="margin-top:.7rem;display:flex;gap:.5rem;align-items:center">
-          <select id="assign-${r.id}" style="max-width:220px">
-            <option value="">إسناد إلى...</option>
-            ${(staffList||[]).map(s=>`<option value="${s.id}">${s.full_name}</option>`).join('')}
-          </select>
+          <select id="assign-${r.id}" style="max-width:220px"><option value="">إسناد إلى...</option>${(staffList||[]).map(s=>`<option value="${s.id}">${s.full_name}</option>`).join('')}</select>
           <button class="btn btn-g btn-sm" data-assign-btn="${r.id}">إسناد ←</button>
-        </div>
-      ` : ''}
+        </div>` : ''}
     `;
-    allReqEl.appendChild(card);
+    el.appendChild(card);
   }
-  allReqEl.querySelectorAll('[data-assign-btn]').forEach(btn => btn.addEventListener('click', async () => {
-    const reqId = btn.dataset.assignBtn;
-    const staffId = document.getElementById(`assign-${reqId}`).value;
+  el.querySelectorAll('[data-assign-btn]').forEach(btn => btn.addEventListener('click', async () => {
+    const staffId = document.getElementById(`assign-${btn.dataset.assignBtn}`).value;
     if (!staffId) return;
-    await sb.from('requests').update({ assigned_staff_id: staffId, status: 'assigned' }).eq('id', reqId);
-    renderAdmin();
+    await sb.from('requests').update({ assigned_staff_id: staffId, status: 'assigned' }).eq('id', btn.dataset.assignBtn);
+    renderAdminRequests();
+  }));
+}
+
+async function renderAdminDrafts() {
+  const { data: pendingDrafts } = await sb.from('drafts').select('*, requests(title, companies(name))').eq('status', 'pending_admin_review');
+  app.innerHTML = `<div id="draftReview"></div>`;
+  const el = document.getElementById('draftReview');
+  if (!pendingDrafts || pendingDrafts.length === 0) { el.innerHTML = `<div class="empty">لا توجد مسودات بانتظار المراجعة.</div>`; return; }
+  pendingDrafts.forEach(d => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="req-title">${d.requests?.title||''} — نسخة ${d.version}</div>
+      <div class="req-meta">${d.requests?.companies?.name||''}</div>
+      <div style="margin-top:.7rem;display:flex;gap:.5rem">
+        <button class="btn btn-g btn-sm" data-approve-draft="${d.id}" data-req="${d.request_id}">اعتماد وإرسال للعميل ←</button>
+        <button class="btn btn-danger btn-sm" data-reject-draft="${d.id}">رفض وإرجاع</button>
+      </div>
+      <div id="reject-form-${d.id}" style="display:none;margin-top:.6rem">
+        <textarea id="reject-notes-${d.id}" placeholder="سبب الرفض / ملاحظاتك للموظف..."></textarea>
+        <button class="btn btn-o btn-sm" style="margin-top:.5rem" data-send-reject="${d.id}">إرسال الرفض ←</button>
+      </div>`;
+    el.appendChild(card);
+  });
+  el.querySelectorAll('[data-approve-draft]').forEach(btn => btn.addEventListener('click', async () => {
+    await sb.from('drafts').update({ status: 'approved_for_client' }).eq('id', btn.dataset.approveDraft);
+    await sb.from('requests').update({ status: 'pending_client_approval' }).eq('id', btn.dataset.req);
+    renderAdminDrafts();
+  }));
+  el.querySelectorAll('[data-reject-draft]').forEach(btn => btn.addEventListener('click', () => { document.getElementById(`reject-form-${btn.dataset.rejectDraft}`).style.display = 'block'; }));
+  el.querySelectorAll('[data-send-reject]').forEach(btn => btn.addEventListener('click', async () => {
+    const notes = document.getElementById(`reject-notes-${btn.dataset.sendReject}`).value.trim();
+    await sb.from('drafts').update({ status: 'rejected_by_admin', admin_notes: notes }).eq('id', btn.dataset.sendReject);
+    renderAdminDrafts();
+  }));
+}
+
+async function renderAdminCompanies() {
+  const { data: companies } = await sb.from('companies').select('*').order('created_at', { ascending: false });
+  app.innerHTML = `<div id="companiesList"></div>`;
+  const el = document.getElementById('companiesList');
+  if (!companies || companies.length === 0) { el.innerHTML = `<div class="empty">لا توجد منشآت مسجلة بعد.</div>`; return; }
+  companies.forEach(c => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="req-row">
+        <div>
+          <div class="req-title">🏢 ${c.name}</div>
+          <div class="req-meta">السجل التجاري: ${c.cr_number || '—'} · ${c.entity_type || ''} · سُجلت ${fmtDate(c.created_at)}</div>
+        </div>
+        ${c.is_active ? `<span class="badge b-active">مفعّلة</span>` : `<span class="badge b-pending">بانتظار التفعيل</span>`}
+      </div>
+      ${!c.is_active ? `<div style="margin-top:.7rem"><button class="btn btn-g btn-sm" data-activate="${c.id}">تفعيل هذه المنشأة ←</button></div>` : ''}
+    `;
+    el.appendChild(card);
+  });
+  el.querySelectorAll('[data-activate]').forEach(btn => btn.addEventListener('click', async () => {
+    await sb.from('companies').update({ is_active: true, activated_at: new Date().toISOString() }).eq('id', btn.dataset.activate);
+    renderAdminCompanies();
   }));
 }
 
