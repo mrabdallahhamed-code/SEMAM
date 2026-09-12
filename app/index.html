@@ -220,10 +220,11 @@ async function ensureCompanyLinked() {
   if (!raw) return;
   try {
     const info = JSON.parse(raw);
-    const { data: company, error } = await sb.from('companies').insert(info).select().single();
-    if (!error && company) {
-      await sb.from('profiles').update({ company_id: company.id }).eq('id', CURRENT_USER.id);
-      CURRENT_PROFILE.company_id = company.id;
+    const newId = crypto.randomUUID();
+    const { error } = await sb.from('companies').insert({ id: newId, ...info });
+    if (!error) {
+      await sb.from('profiles').update({ company_id: newId }).eq('id', CURRENT_USER.id);
+      CURRENT_PROFILE.company_id = newId;
       localStorage.removeItem(key);
     }
   } catch (e) {}
@@ -651,13 +652,14 @@ async function renderClientProfile() {
     const entity_type = document.getElementById('ccf-entity').value;
     const msgEl = document.getElementById('ccf-msg');
 
-    const { data: newCompany, error } = await sb.from('companies').insert({ name, cr_number, entity_type }).select().single();
+    const newId = crypto.randomUUID();
+    const { error } = await sb.from('companies').insert({ id: newId, name, cr_number, entity_type });
     if (error) { msgEl.innerHTML = `<div class="msg err">تعذر الحفظ: ${error.message}</div>`; btn.disabled = false; btn.textContent = 'حفظ بيانات المنشأة ←'; return; }
 
-    const { error: linkErr } = await sb.from('profiles').update({ company_id: newCompany.id }).eq('id', CURRENT_USER.id);
+    const { error: linkErr } = await sb.from('profiles').update({ company_id: newId }).eq('id', CURRENT_USER.id);
     if (linkErr) { msgEl.innerHTML = `<div class="msg err">تعذر الربط: ${linkErr.message}</div>`; btn.disabled = false; btn.textContent = 'حفظ بيانات المنشأة ←'; return; }
 
-    CURRENT_PROFILE.company_id = newCompany.id;
+    CURRENT_PROFILE.company_id = newId;
     msgEl.innerHTML = `<div class="msg ok">تم حفظ بيانات منشأتك. بانتظار تفعيل الإدارة قبل إرسال الطلبات.</div>`;
     renderClientProfile();
   });
