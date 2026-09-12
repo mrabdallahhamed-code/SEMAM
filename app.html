@@ -14,17 +14,25 @@
   }
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:'Tajawal',sans-serif;background:var(--off);color:var(--t);min-height:100vh}
-  .topbar{background:var(--g);padding:.9rem 1.5rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
+  .topbar{background:var(--g);padding:.9rem 1.5rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:20}
   .topbar-l{display:flex;align-items:center;gap:.7rem}
   .topbar img{width:36px;height:auto}
   .topbar .tn{color:#fff;font-size:.95rem;font-weight:700}
   .topbar .tr{color:var(--gold2);font-size:.7rem}
-  .topbar-r{display:flex;align-items:center;gap:.8rem}
+  .topbar-r{display:flex;align-items:center;gap:.7rem;position:relative}
   .who{color:rgba(255,255,255,.85);font-size:.82rem}
   .logout{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.2);padding:.45rem .9rem;border-radius:8px;font-family:inherit;font-size:.78rem;cursor:pointer}
   .logout:hover{background:rgba(255,255,255,.2)}
+  .bell{position:relative;cursor:pointer;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:8px;padding:.5rem .7rem;color:#fff;font-size:.9rem}
+  .bell .dot{position:absolute;top:-4px;left:-4px;background:#e05a4e;color:#fff;font-size:.62rem;font-weight:700;border-radius:100px;padding:.05rem .35rem;min-width:16px;text-align:center}
+  .notif-panel{position:absolute;top:calc(100% + 8px);left:0;background:#fff;border:1px solid var(--bd);border-radius:12px;width:320px;max-height:400px;overflow-y:auto;box-shadow:0 10px 30px rgba(0,0,0,.15);display:none;z-index:30}
+  .notif-panel.open{display:block}
+  .notif-item{padding:.8rem 1rem;border-bottom:1px solid var(--bd);font-size:.8rem;cursor:pointer}
+  .notif-item:last-child{border-bottom:none}
+  .notif-item.unread{background:var(--off);font-weight:700}
+  .notif-item .time{font-size:.68rem;color:var(--t3);margin-top:.25rem;font-weight:400}
   .wrap{max-width:960px;margin:0 auto;padding:1.5rem}
-  .section-title{font-size:1rem;font-weight:800;margin:1.6rem 0 .8rem}
+  .section-title{font-size:1rem;font-weight:800;margin:1.6rem 0 .8rem;display:flex;align-items:center;gap:.5rem}
   .section-title:first-child{margin-top:0}
   .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:.7rem;margin-bottom:1.5rem}
   .stat{background:#fff;border:1px solid var(--bd);border-radius:10px;padding:1rem;text-align:center}
@@ -41,6 +49,9 @@
   .b-approval{background:var(--warn-bg);color:var(--warn-t)}
   .b-revision{background:var(--err-bg);color:var(--err-t)}
   .b-done{background:var(--ok-bg);color:var(--ok-t)}
+  .live-pill{display:inline-flex;align-items:center;gap:.4rem;background:var(--ok-bg);color:var(--ok-t);font-size:.72rem;font-weight:700;padding:.3rem .7rem;border-radius:100px}
+  .live-dot{width:7px;height:7px;border-radius:50%;background:var(--ok-t);animation:pulse 1.5s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
   .btn{display:inline-block;padding:.55rem 1rem;border:none;border-radius:8px;font-family:inherit;font-size:.8rem;font-weight:700;cursor:pointer;text-decoration:none}
   .btn-g{background:var(--g);color:#fff}
   .btn-g:hover{background:var(--g2)}
@@ -53,14 +64,16 @@
   input,textarea,select{width:100%;padding:.65rem .8rem;border:1px solid var(--bd);border-radius:8px;font-family:inherit;font-size:.85rem;background:var(--off)}
   textarea{resize:vertical;min-height:70px}
   .draft-item{border-top:1px solid var(--bd);padding-top:.7rem;margin-top:.7rem}
-  .notif{display:flex;justify-content:space-between;align-items:center;padding:.7rem 0;border-top:1px solid var(--bd);font-size:.82rem}
-  .notif:first-child{border-top:none}
-  .notif.unread{font-weight:700}
+  .attach-link{display:block;font-size:.78rem;color:var(--g);margin-top:.3rem;text-decoration:none}
+  .attach-link:hover{text-decoration:underline}
   .empty{color:var(--t3);font-size:.85rem;text-align:center;padding:2rem 0}
   .loading{text-align:center;padding:3rem;color:var(--t3)}
   .msg{font-size:.82rem;padding:.7rem .9rem;border-radius:8px;margin-bottom:1rem}
   .msg.err{background:var(--err-bg);color:var(--err-t)}
   .msg.ok{background:var(--ok-bg);color:var(--ok-t)}
+  table.report{width:100%;border-collapse:collapse;font-size:.82rem}
+  table.report th{text-align:right;color:var(--t3);font-weight:700;font-size:.72rem;padding:.5rem;border-bottom:1px solid var(--bd)}
+  table.report td{padding:.6rem .5rem;border-bottom:1px solid var(--bd)}
 </style>
 </head>
 <body>
@@ -70,6 +83,9 @@
       <div><div class="tn">صمام</div><div class="tr">من إتقان لخدمات الأعمال</div></div>
     </div>
     <div class="topbar-r">
+      <div class="bell" id="bellBtn">🔔<span class="dot" id="bellCount" style="display:none">0</span>
+        <div class="notif-panel" id="notifPanel"></div>
+      </div>
       <span class="who" id="whoami">...</span>
       <button class="logout" id="logoutBtn">تسجيل الخروج</button>
     </div>
@@ -98,6 +114,7 @@ const STATUS_LABELS = {
 const app = document.getElementById('app');
 let CURRENT_USER = null;
 let CURRENT_PROFILE = null;
+let rerenderTimeout = null;
 
 async function init() {
   const { data: { session } } = await sb.auth.getSession();
@@ -112,19 +129,101 @@ async function init() {
   CURRENT_PROFILE = profile;
   document.getElementById('whoami').textContent = `${profile.full_name} · ${roleLabel(profile.role)}`;
 
-  if (profile.role === 'admin') renderAdmin();
-  else if (profile.role === 'staff') renderStaff();
-  else renderClient();
+  rerenderCurrentRole();
+  loadNotifications();
+  setupRealtime();
+  setupBell();
 }
 
 function roleLabel(r) { return { client: 'عميل', staff: 'فريق العمل', admin: 'إدارة' }[r] || r; }
 function statusBadge(s) { const [label, cls] = STATUS_LABELS[s] || [s, 'b-new']; return `<span class="badge ${cls}">${label}</span>`; }
 function fmtDate(d) { return new Date(d).toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' }); }
+function fmtDuration(sec) { if (!sec) return '—'; const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60); return h>0 ? `${h}س ${m}د` : `${m}د`; }
+function timeAgo(d) {
+  const diff = (Date.now() - new Date(d).getTime())/1000;
+  if (diff < 60) return 'الآن';
+  if (diff < 3600) return `منذ ${Math.floor(diff/60)} د`;
+  if (diff < 86400) return `منذ ${Math.floor(diff/3600)} س`;
+  return fmtDate(d);
+}
+
+function rerenderCurrentRole() {
+  if (!CURRENT_PROFILE) return;
+  if (CURRENT_PROFILE.role === 'admin') renderAdmin();
+  else if (CURRENT_PROFILE.role === 'staff') renderStaff();
+  else renderClient();
+}
 
 document.getElementById('logoutBtn').addEventListener('click', async () => {
   await sb.auth.signOut();
   window.location.href = 'index.html';
 });
+
+// =====================================================================
+// NOTIFICATIONS (shared across all 3 roles)
+// =====================================================================
+function setupBell() {
+  const bellBtn = document.getElementById('bellBtn');
+  const panel = document.getElementById('notifPanel');
+  bellBtn.addEventListener('click', (e) => {
+    panel.classList.toggle('open');
+  });
+  document.addEventListener('click', (e) => {
+    if (!bellBtn.contains(e.target)) panel.classList.remove('open');
+  });
+}
+
+async function loadNotifications() {
+  const { data: notifs } = await sb.from('notifications').select('*').eq('recipient_id', CURRENT_USER.id).order('created_at', { ascending: false }).limit(20);
+  const panel = document.getElementById('notifPanel');
+  const countEl = document.getElementById('bellCount');
+  const unread = (notifs || []).filter(n => !n.is_read).length;
+  countEl.style.display = unread > 0 ? 'block' : 'none';
+  countEl.textContent = unread;
+
+  panel.innerHTML = (notifs && notifs.length)
+    ? notifs.map(n => `
+        <div class="notif-item ${!n.is_read ? 'unread' : ''}" data-notif="${n.id}">
+          ${n.message}
+          <div class="time">${timeAgo(n.created_at)}</div>
+        </div>`).join('')
+    : `<div class="notif-item">لا توجد إشعارات بعد.</div>`;
+
+  panel.querySelectorAll('[data-notif]').forEach(el => el.addEventListener('click', async () => {
+    await sb.from('notifications').update({ is_read: true }).eq('id', el.dataset.notif);
+    loadNotifications();
+  }));
+}
+
+// =====================================================================
+// REALTIME — auto-refresh the view when relevant data changes
+// =====================================================================
+function setupRealtime() {
+  const debouncedRerender = () => {
+    clearTimeout(rerenderTimeout);
+    rerenderTimeout = setTimeout(rerenderCurrentRole, 400);
+  };
+  sb.channel('samam-live-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'requests' }, debouncedRerender)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'drafts' }, debouncedRerender)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'task_timer_logs' }, debouncedRerender)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'request_attachments' }, debouncedRerender)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, loadNotifications)
+    .subscribe();
+}
+
+// =====================================================================
+// SHARED HELPER: attachments list with signed (temporary) download links
+// =====================================================================
+async function attachmentsHtml(requestId) {
+  const { data: atts } = await sb.from('request_attachments').select('*').eq('request_id', requestId);
+  if (!atts || atts.length === 0) return '';
+  const links = await Promise.all(atts.map(async a => {
+    const { data } = await sb.storage.from('client-uploads').createSignedUrl(a.file_path, 3600);
+    return `<a class="attach-link" href="${data?.signedUrl || '#'}" target="_blank">📎 ${a.file_name}</a>`;
+  }));
+  return links.join('');
+}
 
 // =====================================================================
 // CLIENT DASHBOARD
@@ -152,7 +251,8 @@ async function renderClient() {
         </select></div>
         <div><label>عنوان الطلب</label><input id="nr-title" required placeholder="مثال: مراجعة فواتير شهر سبتمبر"></div>
         <div><label>تفاصيل إضافية</label><textarea id="nr-desc" placeholder="أي تفاصيل تساعد فريقنا..."></textarea></div>
-        <button type="submit" class="btn btn-g">إرسال الطلب ←</button>
+        <div><label>إرفاق مستندات (اختياري)</label><input id="nr-files" type="file" multiple></div>
+        <button type="submit" class="btn btn-g" id="nr-submit">إرسال الطلب ←</button>
       </form>
       <div id="nr-msg"></div>
     </div>
@@ -163,13 +263,35 @@ async function renderClient() {
 
   document.getElementById('newReqForm').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const btn = document.getElementById('nr-submit');
+    btn.disabled = true; btn.textContent = 'جاري الإرسال...';
     const service_id = document.getElementById('nr-service').value;
     const title = document.getElementById('nr-title').value.trim();
     const description = document.getElementById('nr-desc').value.trim();
-    const { error } = await sb.from('requests').insert({ client_id: CURRENT_USER.id, service_id, title, description, status: 'new' });
+    const files = document.getElementById('nr-files').files;
     const msgEl = document.getElementById('nr-msg');
-    if (error) { msgEl.innerHTML = `<div class="msg err">تعذر إرسال الطلب: ${error.message}</div>`; }
-    else { msgEl.innerHTML = `<div class="msg ok">تم إرسال طلبك بنجاح.</div>`; e.target.reset(); renderClient(); }
+
+    const { data: newReq, error } = await sb.from('requests')
+      .insert({ client_id: CURRENT_USER.id, service_id, title, description, status: 'new' })
+      .select().single();
+
+    if (error) {
+      msgEl.innerHTML = `<div class="msg err">تعذر إرسال الطلب: ${error.message}</div>`;
+      btn.disabled = false; btn.textContent = 'إرسال الطلب ←';
+      return;
+    }
+
+    for (const file of files) {
+      const path = `${newReq.id}/${Date.now()}_${file.name}`;
+      const { error: upErr } = await sb.storage.from('client-uploads').upload(path, file);
+      if (!upErr) {
+        await sb.from('request_attachments').insert({ request_id: newReq.id, uploaded_by: CURRENT_USER.id, file_path: path, file_name: file.name });
+      }
+    }
+
+    msgEl.innerHTML = `<div class="msg ok">تم إرسال طلبك بنجاح.</div>`;
+    e.target.reset();
+    renderClient();
   });
 
   const listEl = document.getElementById('reqList');
@@ -177,7 +299,9 @@ async function renderClient() {
 
   for (const r of requests) {
     const { data: drafts } = await sb.from('drafts').select('*').eq('request_id', r.id).order('version', { ascending: false });
-    const visibleDraft = (drafts || [])[0]; // RLS already ensures only client-visible drafts are returned
+    const visibleDraft = (drafts || [])[0];
+    const { data: openTimer } = await sb.from('task_timer_logs').select('*').eq('request_id', r.id).is('ended_at', null).maybeSingle();
+    const attachHtml = await attachmentsHtml(r.id);
 
     const card = document.createElement('div');
     card.className = 'card';
@@ -187,8 +311,12 @@ async function renderClient() {
           <div class="req-title">${r.title}</div>
           <div class="req-meta">${r.services?.name_ar || ''} · ${fmtDate(r.created_at)}</div>
         </div>
-        ${statusBadge(r.status)}
+        <div style="display:flex;gap:.5rem;align-items:center">
+          ${openTimer ? `<span class="live-pill"><span class="live-dot"></span>الموظف يعمل الآن</span>` : ''}
+          ${statusBadge(r.status)}
+        </div>
       </div>
+      ${attachHtml}
       ${visibleDraft ? `
         <div class="draft-item">
           <div class="req-meta" style="margin-bottom:.5rem">مسودة النسخة ${visibleDraft.version} — ${statusBadge(visibleDraft.status)}</div>
@@ -209,9 +337,8 @@ async function renderClient() {
   }
 
   listEl.querySelectorAll('[data-approve]').forEach(btn => btn.addEventListener('click', async () => {
-    const draftId = btn.dataset.approve, reqId = btn.dataset.req;
-    await sb.from('drafts').update({ status: 'approved_by_client' }).eq('id', draftId);
-    await sb.from('requests').update({ status: 'completed' }).eq('id', reqId);
+    await sb.from('drafts').update({ status: 'approved_by_client' }).eq('id', btn.dataset.approve);
+    await sb.from('requests').update({ status: 'completed' }).eq('id', btn.dataset.req);
     renderClient();
   }));
   listEl.querySelectorAll('[data-revise]').forEach(btn => btn.addEventListener('click', () => {
@@ -238,6 +365,7 @@ async function renderStaff() {
 
   for (const r of requests) {
     const { data: openTimer } = await sb.from('task_timer_logs').select('*').eq('request_id', r.id).eq('staff_id', CURRENT_USER.id).is('ended_at', null).maybeSingle();
+    const attachHtml = await attachmentsHtml(r.id);
 
     const card = document.createElement('div');
     card.className = 'card';
@@ -249,10 +377,12 @@ async function renderStaff() {
         </div>
         ${statusBadge(r.status)}
       </div>
-      <div style="margin-top:.8rem;display:flex;gap:.5rem;flex-wrap:wrap">
+      ${r.description ? `<p class="req-meta" style="margin-top:.5rem">${r.description}</p>` : ''}
+      ${attachHtml}
+      <div style="margin-top:.8rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
         ${!openTimer ? `<button class="btn btn-g btn-sm" data-start="${r.id}">بدء التنفيذ ←</button>`
-                     : `<button class="btn btn-danger btn-sm" data-stop="${openTimer.id}" data-req="${r.id}">إنهاء الجلسة</button>`}
-        <label style="margin-right:.5rem"><input type="file" data-upload-draft="${r.id}" style="font-size:.75rem"></label>
+                     : `<span class="live-pill"><span class="live-dot"></span>يعمل الآن</span><button class="btn btn-danger btn-sm" data-stop="${openTimer.id}" data-req="${r.id}">إنهاء الجلسة</button>`}
+        <label style="margin-right:.5rem;font-size:.75rem">رفع مسودة: <input type="file" data-upload-draft="${r.id}" style="display:inline"></label>
       </div>
       <div id="draft-msg-${r.id}"></div>
     `;
@@ -292,35 +422,48 @@ async function renderStaff() {
 // ADMIN DASHBOARD
 // =====================================================================
 async function renderAdmin() {
-  const [{ data: requests }, { data: staffList }, { data: pendingDrafts }, { data: notifications }] = await Promise.all([
+  const [{ data: requests }, { data: staffList }, { data: pendingDrafts }, { data: activeTimers }, { data: completedLogs }] = await Promise.all([
     sb.from('requests').select('*, services(name_ar), profiles!requests_client_id_fkey(full_name, company_name)').order('created_at', { ascending: false }),
     sb.from('profiles').select('*').eq('role', 'staff').eq('is_active', true),
     sb.from('drafts').select('*, requests(title)').eq('status', 'pending_admin_review'),
-    sb.from('notifications').select('*').eq('recipient_id', CURRENT_USER.id).order('created_at', { ascending: false }).limit(10),
+    sb.from('task_timer_logs').select('*, profiles!task_timer_logs_staff_id_fkey(full_name), requests(title)').is('ended_at', null),
+    sb.from('task_timer_logs').select('*, profiles!task_timer_logs_staff_id_fkey(full_name)').not('ended_at', 'is', null),
   ]);
 
   app.innerHTML = `
     <div class="stats">
       <div class="stat"><div class="n">${(requests||[]).filter(r=>r.status==='new').length}</div><div class="l">طلبات جديدة</div></div>
       <div class="stat"><div class="n">${(pendingDrafts||[]).length}</div><div class="l">مسودات بانتظار مراجعتك</div></div>
-      <div class="stat"><div class="n">${(requests||[]).filter(r=>r.status==='in_progress').length}</div><div class="l">قيد التنفيذ</div></div>
+      <div class="stat"><div class="n">${(activeTimers||[]).length}</div><div class="l">موظفون يعملون الآن</div></div>
     </div>
 
-    <div class="section-title">🔔 آخر الإشعارات</div>
-    <div class="card" id="notifBox"></div>
+    <div class="section-title">👁️ من يعمل الآن</div>
+    <div class="card" id="liveActivity"></div>
 
     <div class="section-title">بوابة تدقيق المسودات</div>
     <div id="draftReview"></div>
+
+    <div class="section-title">📊 تقرير الإنتاجية</div>
+    <div class="card" id="productivityReport"></div>
 
     <div class="section-title">كل الطلبات</div>
     <div id="allRequests"></div>
   `;
 
-  const notifBox = document.getElementById('notifBox');
-  notifBox.innerHTML = (notifications && notifications.length)
-    ? notifications.map(n => `<div class="notif ${!n.is_read?'unread':''}">${n.message}</div>`).join('')
-    : `<div class="empty">لا توجد إشعارات.</div>`;
+  // ---- Live activity ----
+  const liveEl = document.getElementById('liveActivity');
+  liveEl.innerHTML = (activeTimers && activeTimers.length)
+    ? activeTimers.map(t => `
+        <div class="req-row" style="padding:.5rem 0">
+          <div>
+            <span class="live-pill"><span class="live-dot"></span>${t.profiles?.full_name || ''}</span>
+            <span class="req-meta" style="display:inline;margin-right:.5rem">يعمل على: ${t.requests?.title || ''}</span>
+          </div>
+          <span class="req-meta">بدأ ${timeAgo(t.started_at)}</span>
+        </div>`).join('')
+    : `<div class="empty">لا يوجد أحد يعمل حالياً.</div>`;
 
+  // ---- Draft review queue ----
   const draftEl = document.getElementById('draftReview');
   if (!pendingDrafts || pendingDrafts.length === 0) {
     draftEl.innerHTML = `<div class="empty">لا توجد مسودات بانتظار المراجعة.</div>`;
@@ -356,13 +499,31 @@ async function renderAdmin() {
     }));
   }
 
+  // ---- Productivity report ----
+  const repEl = document.getElementById('productivityReport');
+  const byStaff = {};
+  (completedLogs || []).forEach(l => {
+    const name = l.profiles?.full_name || 'غير معروف';
+    if (!byStaff[name]) byStaff[name] = { count: 0, total: 0 };
+    byStaff[name].count++;
+    byStaff[name].total += (l.duration_seconds || 0);
+  });
+  const rows = Object.entries(byStaff);
+  repEl.innerHTML = rows.length ? `
+    <table class="report">
+      <tr><th>الموظف</th><th>عدد المهام المنجزة</th><th>متوسط وقت الإنجاز</th></tr>
+      ${rows.map(([name, s]) => `<tr><td>${name}</td><td>${s.count}</td><td>${fmtDuration(Math.round(s.total / s.count))}</td></tr>`).join('')}
+    </table>` : `<div class="empty">لا توجد بيانات إنتاجية مكتملة بعد.</div>`;
+
+  // ---- All requests + assignment ----
   const allReqEl = document.getElementById('allRequests');
   if (!requests || requests.length === 0) { allReqEl.innerHTML = `<div class="empty">لا توجد طلبات بعد.</div>`; return; }
 
-  requests.forEach(r => {
+  for (const r of requests) {
+    const needsAssignment = !r.assigned_staff_id;
+    const attachHtml = await attachmentsHtml(r.id);
     const card = document.createElement('div');
     card.className = 'card';
-    const needsAssignment = !r.assigned_staff_id;
     card.innerHTML = `
       <div class="req-row">
         <div>
@@ -371,6 +532,7 @@ async function renderAdmin() {
         </div>
         ${statusBadge(r.status)}
       </div>
+      ${attachHtml}
       ${needsAssignment ? `
         <div style="margin-top:.7rem;display:flex;gap:.5rem;align-items:center">
           <select id="assign-${r.id}" style="max-width:220px">
@@ -382,7 +544,7 @@ async function renderAdmin() {
       ` : ''}
     `;
     allReqEl.appendChild(card);
-  });
+  }
   allReqEl.querySelectorAll('[data-assign-btn]').forEach(btn => btn.addEventListener('click', async () => {
     const reqId = btn.dataset.assignBtn;
     const staffId = document.getElementById(`assign-${reqId}`).value;
