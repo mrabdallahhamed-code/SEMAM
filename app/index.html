@@ -2,7 +2,15 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#3A584B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="صمام">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16.png">
 <title>صمام | لوحة التحكم</title>
 <meta name="robots" content="noindex, nofollow">
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
@@ -34,11 +42,18 @@
 
   .topbar{display:none;background:var(--g);padding:.8rem 1rem;align-items:center;justify-content:space-between}
   .hamburger{color:#fff;font-size:1.3rem;background:none;border:none;cursor:pointer}
+  .bottom-nav{display:none}
   @media(max-width:860px){
     .sidebar{position:fixed;right:-240px;top:0;z-index:50;transition:right .25s;box-shadow:0 0 30px rgba(0,0,0,.3)}
     .sidebar.open{right:0}
     .topbar{display:flex}
     .main{width:100%}
+    .wrap{padding-bottom:5.5rem}
+    .bottom-nav{display:flex;position:fixed;bottom:0;right:0;left:0;background:#fff;border-top:1px solid var(--bd);z-index:40;padding-bottom:env(safe-area-inset-bottom)}
+    .bn-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:.2rem;padding:.6rem 0 .5rem;background:none;border:none;font-family:inherit;color:var(--t3);font-size:.65rem;cursor:pointer;position:relative}
+    .bn-item.active{color:var(--g);font-weight:700}
+    .bn-ico{font-size:1.25rem}
+    .bn-dot{position:absolute;top:2px;left:calc(50% + 6px);width:8px;height:8px;border-radius:50%;background:#e05a4e}
   }
 
   .main{flex:1;min-width:0}
@@ -114,7 +129,7 @@
 
   form.new-req{display:grid;gap:.8rem}
   label{font-size:.78rem;font-weight:700;color:var(--t2);display:block;margin-bottom:.3rem}
-  input,textarea,select{width:100%;padding:.65rem .8rem;border:1px solid var(--bd);border-radius:8px;font-family:inherit;font-size:.85rem;background:var(--off)}
+  input,textarea,select{width:100%;padding:.65rem .8rem;border:1px solid var(--bd);border-radius:8px;font-family:inherit;font-size:16px;background:var(--off)}
   textarea{resize:vertical;min-height:70px}
   .draft-item{border-top:1px solid var(--bd);padding-top:.7rem;margin-top:.7rem}
   .attach-link{display:block;font-size:.78rem;color:var(--g);margin-top:.3rem;text-decoration:none}
@@ -165,6 +180,7 @@
     </div>
     <div class="wrap" id="app"><div class="loading">جاري التحميل...</div></div>
   </div>
+  <nav class="bottom-nav" id="bottomNav"></nav>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -302,6 +318,7 @@ function navigate(view, label) {
   currentView = view;
   document.getElementById('pageTitle').textContent = label;
   document.querySelectorAll('.sb-item').forEach(el => el.classList.toggle('active', el.dataset.view === view));
+  document.querySelectorAll('.bn-item').forEach(el => el.classList.toggle('active', el.dataset.bn === view));
   document.getElementById('sidebar').classList.remove('open');
   renderContent();
 }
@@ -325,7 +342,45 @@ function renderSidebar() {
   }
   nav.innerHTML = html;
   nav.querySelectorAll('.sb-item').forEach(el => el.addEventListener('click', () => navigate(el.dataset.view, el.textContent)));
+  renderBottomNav();
   navigate(currentView, currentView === 'dashboard' ? 'لوحة التحكم' : '');
+}
+
+function renderBottomNav() {
+  const bn = document.getElementById('bottomNav');
+  let items = [];
+  if (CURRENT_PROFILE.role === 'client') {
+    items = [
+      { view: 'dashboard', ico: '🏠', label: 'الرئيسية' },
+      { view: 'documents', ico: '📁', label: 'المستندات' },
+      { view: 'archive', ico: '🗄️', label: 'الأرشيف' },
+      { view: '__more', ico: '☰', label: 'المزيد' },
+    ];
+  } else if (CURRENT_PROFILE.role === 'staff') {
+    items = [
+      { view: 'dashboard', ico: '🏠', label: 'لوحة التحكم' },
+      { view: 'tasks', ico: '📋', label: 'مهامي' },
+      { view: '__bell', ico: '🔔', label: 'الإشعارات' },
+    ];
+  } else if (CURRENT_PROFILE.role === 'admin') {
+    items = [
+      { view: 'dashboard', ico: '🏠', label: 'الرئيسية' },
+      { view: 'requests', ico: '📋', label: 'الطلبات' },
+      { view: 'drafts', ico: '📝', label: 'المسودات' },
+      { view: 'companies', ico: '🏢', label: 'الشركات' },
+    ];
+  }
+  bn.innerHTML = items.map(it => `
+    <button class="bn-item ${currentView===it.view?'active':''}" data-bn="${it.view}">
+      <span class="bn-ico">${it.ico}</span>${it.label}
+      ${it.view==='__bell' ? '<span class="bn-dot" id="bnBellDot" style="display:none"></span>' : ''}
+    </button>`).join('');
+  bn.querySelectorAll('[data-bn]').forEach(btn => btn.addEventListener('click', () => {
+    const v = btn.dataset.bn;
+    if (v === '__more') { document.getElementById('sidebar').classList.toggle('open'); }
+    else if (v === '__bell') { document.getElementById('notifPanel').classList.toggle('open'); }
+    else { navigate(v, btn.textContent.trim()); }
+  }));
 }
 
 function renderContent() {
@@ -354,6 +409,8 @@ async function loadNotifications() {
   const unread = (notifs || []).filter(n => !n.is_read).length;
   countEl.style.display = unread > 0 ? 'block' : 'none';
   countEl.textContent = unread;
+  const bnDot = document.getElementById('bnBellDot');
+  if (bnDot) bnDot.style.display = unread > 0 ? 'block' : 'none';
   panel.innerHTML = (notifs && notifs.length)
     ? notifs.map(n => `<div class="notif-item ${!n.is_read?'unread':''}" data-notif="${n.id}">${n.message}<div class="time">${timeAgo(n.created_at)}</div></div>`).join('')
     : `<div class="notif-item">لا توجد إشعارات بعد.</div>`;
