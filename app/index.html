@@ -192,7 +192,8 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const STATUS_LABELS = {
   new: ['جديد', 'b-new'], assigned: ['مُسند', 'b-new'], in_progress: ['قيد التنفيذ', 'b-progress'],
   pending_admin_review: ['بانتظار مراجعة المدير', 'b-review'], pending_client_approval: ['بانتظار اعتمادك', 'b-approval'],
-  client_revision_requested: ['طلب تعديل', 'b-revision'], completed: ['مكتمل', 'b-done'],
+  client_revision_requested: ['طلب تعديل', 'b-revision'], awaiting_final_file: ['بانتظار الملف النهائي', 'b-approval'],
+  completed: ['مكتمل', 'b-done'],
 };
 const PROGRESS_LABELS = ['تم الاستلام', 'قيد التنفيذ', 'بانتظار الاعتماد', 'مكتمل'];
 const QUICK_TITLES = {
@@ -277,7 +278,7 @@ async function runOrAlert(promise, failLabel) {
 
 function progressStep(status) {
   if (status === 'completed') return 3;
-  if (status === 'pending_client_approval' || status === 'client_revision_requested') return 2;
+  if (status === 'pending_client_approval' || status === 'client_revision_requested' || status === 'awaiting_final_file') return 2;
   if (status === 'in_progress' || status === 'pending_admin_review') return 1;
   return 0;
 }
@@ -470,9 +471,11 @@ async function finalFileHtml(r) {
 }
 
 async function draftFileLinkHtml(draft) {
-  if (!draft.file_path) return `<div class="req-meta">📝 حُدد كمنفَّذ بدون ملف مرفق</div>`;
+  if (!draft.file_path) return `<div class="msg ok">📝 حُدد كمنفَّذ بدون ملف مرفق</div>`;
   const { data } = await sb.storage.from('drafts').createSignedUrl(draft.file_path, 3600);
-  return data?.signedUrl ? `<a class="attach-link" href="${data.signedUrl}" target="_blank">📎 عرض/تحميل ملف المسودة</a>` : '';
+  return data?.signedUrl
+    ? `<a href="${data.signedUrl}" target="_blank" class="btn btn-g btn-sm" style="display:inline-block">📎 عرض / تحميل ملف المسودة ←</a>`
+    : `<div class="msg err">تعذر تحميل رابط الملف</div>`;
 }
 
 // ---- Inquiries thread (staff asks, client/admin answers) ----
@@ -934,8 +937,9 @@ async function renderStaffTasks() {
       ${inqHtml}
       ${finalHtml}
       <div style="margin-top:.8rem;display:flex;gap:.5rem;flex-wrap:wrap">
-        ${!openTimer ? `<button class="btn btn-g btn-sm" data-start="${r.id}">بدء التنفيذ ←</button>`
-                     : `<span class="live-pill"><span class="live-dot"></span>يعمل الآن</span> <button class="btn btn-danger btn-sm" data-stop="${openTimer.id}" data-req="${r.id}">إنهاء الجلسة</button>`}
+        ${r.status === 'assigned' ? `<button class="btn btn-danger btn-sm" data-reject-assignment="${r.id}">رفض الإسناد</button>` : ''}
+        ${!openTimer && r.status !== 'awaiting_final_file' && r.status !== 'completed' ? `<button class="btn btn-g btn-sm" data-start="${r.id}">بدء التنفيذ ←</button>` : ''}
+        ${openTimer ? `<span class="live-pill"><span class="live-dot"></span>يعمل الآن</span> <button class="btn btn-danger btn-sm" data-stop="${openTimer.id}" data-req="${r.id}">إنهاء الجلسة</button>` : ''}
         <button class="btn btn-o btn-sm" data-ask-toggle="${r.id}">❓ طرح استفسار</button>
       </div>
       <div id="ask-form-${r.id}" style="display:none;margin-top:.7rem;border-top:1px solid var(--bd);padding-top:.7rem">
@@ -943,27 +947,35 @@ async function renderStaffTasks() {
         <button class="btn btn-g btn-sm" style="margin-top:.5rem" data-send-ask="${r.id}">إرسال الاستفسار ←</button>
         <div id="ask-msg-${r.id}"></div>
       </div>
-      <div style="margin-top:.9rem;border-top:1px solid var(--bd);padding-top:.9rem">
-        <label>رفع مسودة / ملف عمل (متاح دائمًا)</label>
-        ${uploadWidgetHtml('draft-'+r.id)}
-        <div style="display:flex;gap:.5rem;margin-top:.6rem;flex-wrap:wrap">
-          <button class="btn btn-o btn-sm" data-submit-draft="${r.id}">رفع كمسودة ←</button>
-          <button class="btn btn-o btn-sm" data-mark-done="${r.id}">تحديد كمنفَّذ بدون ملف ←</button>
-        </div>
-      </div>
-      <div id="draft-msg-${r.id}"></div>
-      ${r.status === 'completed' && !r.final_file_path ? `
+      ${r.status !== 'awaiting_final_file' && r.status !== 'completed' ? `
         <div style="margin-top:.9rem;border-top:1px solid var(--bd);padding-top:.9rem">
-          <label>📄 رفع الملف النهائي المعتمد</label>
+          <label>رفع مسودة / ملف عمل (متاح دائمًا)</label>
+          ${uploadWidgetHtml('draft-'+r.id)}
+          <div style="display:flex;gap:.5rem;margin-top:.6rem;flex-wrap:wrap">
+            <button class="btn btn-o btn-sm" data-submit-draft="${r.id}">رفع كمسودة ←</button>
+            <button class="btn btn-o btn-sm" data-mark-done="${r.id}">تحديد كمنفَّذ بدون ملف ←</button>
+          </div>
+        </div>
+        <div id="draft-msg-${r.id}"></div>
+      ` : ''}
+      ${r.status === 'awaiting_final_file' && !r.final_file_path ? `
+        <div style="margin-top:.9rem;border-top:1px solid var(--bd);padding-top:.9rem">
+          <div class="msg ok">✅ اعتمد العميل المسودة. آخر خطوة: ارفع الملف النهائي الرسمي.</div>
+          <label style="margin-top:.6rem">📄 رفع الملف النهائي المعتمد</label>
           ${uploadWidgetHtml('final-'+r.id)}
           <button class="btn btn-g btn-sm" style="margin-top:.6rem" data-submit-final="${r.id}">رفع الملف النهائي ←</button>
           <div id="final-msg-${r.id}"></div>
         </div>
       ` : ''}
+      ${r.status === 'awaiting_final_file' && r.final_file_path ? `
+        <div style="margin-top:.9rem;border-top:1px solid var(--bd);padding-top:.9rem">
+          <button class="btn btn-g" style="width:100%" data-complete-task="${r.id}">✅ إكمال المهمة نهائيًا</button>
+        </div>
+      ` : ''}
     `;
     listEl.appendChild(card);
-    wireUploadWidgetPreview('draft-'+r.id);
-    if (r.status === 'completed' && !r.final_file_path) wireUploadWidgetPreview('final-'+r.id);
+    if (r.status !== 'awaiting_final_file' && r.status !== 'completed') wireUploadWidgetPreview('draft-'+r.id);
+    if (r.status === 'awaiting_final_file' && !r.final_file_path) wireUploadWidgetPreview('final-'+r.id);
     wireOneTaskCardEvents(card);
     wireInquiryAnswerButtons(card, () => renderStaffTasks());
   }
@@ -1000,6 +1012,18 @@ async function renderStaffTasks() {
       const { error: reqErr } = await sb.from('requests').update({ status: 'pending_admin_review' }).eq('id', reqId);
       if (reqErr) { msgEl.innerHTML = `<div class="msg err">تم رفع الملف لكن فشل تحديث حالة الطلب: ${reqErr.message}</div>`; return; }
       msgEl.innerHTML = `<div class="msg ok">تم رفع المسودة، بانتظار مراجعة المدير.</div>`;
+    }));
+
+    card.querySelectorAll('[data-reject-assignment]').forEach(btn => btn.addEventListener('click', async () => {
+      if (!confirm('هل أنت متأكد من رفض إسناد هذا الطلب؟ سيعود للإدارة لإعادة الإسناد.')) return;
+      const ok = await runOrAlert(sb.from('requests').update({ assigned_staff_id: null, status: 'new' }).eq('id', btn.dataset.rejectAssignment), 'تعذر رفض الإسناد');
+      if (ok) renderStaffTasks();
+    }));
+
+    card.querySelectorAll('[data-complete-task]').forEach(btn => btn.addEventListener('click', async () => {
+      if (!confirm('هل أنت متأكد من إكمال هذه المهمة نهائيًا؟')) return;
+      const ok = await runOrAlert(sb.from('requests').update({ status: 'completed' }).eq('id', btn.dataset.completeTask), 'تعذر إكمال المهمة');
+      if (ok) renderStaffTasks();
     }));
 
     card.querySelectorAll('[data-mark-done]').forEach(btn => btn.addEventListener('click', async () => {
@@ -1045,11 +1069,12 @@ async function renderStaffTasks() {
 }
 
 async function renderAdminDashboard() {
-  const [{ data: requests }, { data: pendingDrafts }, { data: activeTimers }, { data: completedLogs }] = await Promise.all([
+  const [{ data: requests }, { data: pendingDrafts }, { data: activeTimers }, { data: completedLogs }, { data: completedRequests }] = await Promise.all([
     sb.from('requests').select('*'),
     sb.from('drafts').select('*, requests(title)').eq('status', 'pending_admin_review'),
     sb.from('task_timer_logs').select('*, profiles!task_timer_logs_staff_id_fkey(full_name), requests(title)').is('ended_at', null),
     sb.from('task_timer_logs').select('*, profiles!task_timer_logs_staff_id_fkey(full_name)').not('ended_at', 'is', null),
+    sb.from('requests').select('*, profiles!requests_assigned_staff_id_fkey(full_name)').eq('status', 'completed').not('started_at', 'is', null).not('completed_at', 'is', null),
   ]);
 
   const pendingCount = (pendingDrafts || []).length;
@@ -1081,13 +1106,22 @@ async function renderAdminDashboard() {
   const byStaff = {};
   (completedLogs || []).forEach(l => {
     const name = l.profiles?.full_name || 'غير معروف';
-    if (!byStaff[name]) byStaff[name] = { count: 0, total: 0 };
+    if (!byStaff[name]) byStaff[name] = { count: 0, total: 0, onTime: 0, late: 0, rated: 0 };
     byStaff[name].count++; byStaff[name].total += (l.duration_seconds || 0);
+  });
+  (completedRequests || []).forEach(r => {
+    const name = r.profiles?.full_name || 'غير معروف';
+    if (!byStaff[name]) byStaff[name] = { count: 0, total: 0, onTime: 0, late: 0, rated: 0 };
+    if (r.expected_hours) {
+      const actualHours = (new Date(r.completed_at) - new Date(r.started_at)) / 3600000;
+      byStaff[name].rated++;
+      if (actualHours <= r.expected_hours) byStaff[name].onTime++; else byStaff[name].late++;
+    }
   });
   const rows = Object.entries(byStaff);
   document.getElementById('productivityReport').innerHTML = rows.length ? `
-    <table class="report"><tr><th>الموظف</th><th>المهام المنجزة</th><th>متوسط الوقت</th></tr>
-      ${rows.map(([name,s]) => `<tr><td>${name}</td><td>${s.count}</td><td>${fmtDuration(Math.round(s.total/s.count))}</td></tr>`).join('')}
+    <table class="report"><tr><th>الموظف</th><th>المهام المنجزة</th><th>متوسط الوقت</th><th>الأداء الزمني</th></tr>
+      ${rows.map(([name,s]) => `<tr><td>${name}</td><td>${s.count}</td><td>${fmtDuration(Math.round(s.total/(s.count||1)))}</td><td>${s.rated ? `✅ ${s.onTime} ضمن الوقت · ⚠️ ${s.late} متأخر` : '—'}</td></tr>`).join('')}
     </table>` : emptyState('📊', 'لا توجد بيانات إنتاجية مكتملة بعد', '');
 }
 
@@ -1124,6 +1158,7 @@ async function renderAdminRequests() {
         </select>
         ${needsAssignment ? `
           <select id="assign-${r.id}" style="max-width:220px"><option value="">إسناد إلى...</option>${(staffList||[]).map(s=>`<option value="${s.id}">${s.full_name}</option>`).join('')}</select>
+          <input id="expected-hours-${r.id}" type="number" min="0" step="0.5" placeholder="الوقت المتوقع (ساعة)" style="max-width:170px">
           <button class="btn btn-g btn-sm" data-assign-btn="${r.id}">إسناد ←</button>` : ''}
       </div>
     `;
@@ -1135,9 +1170,13 @@ async function renderAdminRequests() {
     if (ok) renderAdminRequests();
   }));
   el.querySelectorAll('[data-assign-btn]').forEach(btn => btn.addEventListener('click', async () => {
-    const staffId = document.getElementById(`assign-${btn.dataset.assignBtn}`).value;
+    const reqId = btn.dataset.assignBtn;
+    const staffId = document.getElementById(`assign-${reqId}`).value;
     if (!staffId) return;
-    const ok = await runOrAlert(sb.from('requests').update({ assigned_staff_id: staffId, status: 'assigned' }).eq('id', btn.dataset.assignBtn), 'تعذر إسناد الطلب');
+    const expectedHoursVal = document.getElementById(`expected-hours-${reqId}`).value;
+    const payload = { assigned_staff_id: staffId, status: 'assigned' };
+    if (expectedHoursVal) payload.expected_hours = parseFloat(expectedHoursVal);
+    const ok = await runOrAlert(sb.from('requests').update(payload).eq('id', reqId), 'تعذر إسناد الطلب');
     if (ok) renderAdminRequests();
   }));
 }
@@ -1153,7 +1192,7 @@ async function renderAdminDrafts() {
     card.innerHTML = `
       <div class="req-title">${d.requests?.title||''} — نسخة ${d.version}</div>
       <div class="req-meta">${d.requests?.companies?.name||''}</div>
-      <div id="draft-file-${d.id}" class="req-meta" style="margin-top:.5rem">جاري تحميل رابط الملف...</div>
+      <div id="draft-file-${d.id}" style="margin-top:.7rem">جاري تحميل رابط الملف...</div>
       ${d.client_notes ? `<div class="msg err" style="margin-top:.6rem"><strong>ملاحظات تعديل من العميل:</strong><br>${d.client_notes}</div>` : ''}
       <div style="margin-top:.7rem;display:flex;gap:.5rem">
         <button class="btn btn-g btn-sm" data-approve-draft="${d.id}" data-req="${d.request_id}">اعتماد وإرسال للعميل ←</button>
@@ -1166,9 +1205,12 @@ async function renderAdminDrafts() {
     el.appendChild(card);
     (async () => {
       const fileEl = document.getElementById(`draft-file-${d.id}`);
-      if (!d.file_path) { fileEl.textContent = '📝 حُدد كمنفَّذ بدون ملف مرفق'; return; }
-      const { data } = await sb.storage.from('drafts').createSignedUrl(d.file_path, 3600);
-      fileEl.innerHTML = data?.signedUrl ? `<a class="attach-link" href="${data.signedUrl}" target="_blank">📎 عرض/تحميل ملف المسودة</a>` : 'تعذر تحميل رابط الملف';
+      if (!d.file_path) { fileEl.innerHTML = `<div class="msg ok">📝 حُدد كمنفَّذ بدون ملف مرفق</div>`; return; }
+      const { data, error } = await sb.storage.from('drafts').createSignedUrl(d.file_path, 3600);
+      if (error) { fileEl.innerHTML = `<div class="msg err">تعذر تحميل رابط الملف: ${error.message}</div>`; return; }
+      fileEl.innerHTML = data?.signedUrl
+        ? `<a href="${data.signedUrl}" target="_blank" class="btn btn-g btn-sm" style="display:inline-block">📎 عرض / تحميل ملف المسودة ←</a>`
+        : `<div class="msg err">تعذر تحميل رابط الملف</div>`;
     })();
   });
   el.querySelectorAll('[data-approve-draft]').forEach(btn => btn.addEventListener('click', async () => {
