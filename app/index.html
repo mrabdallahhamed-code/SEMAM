@@ -353,6 +353,8 @@ function renderSidebar() {
     html += `<div class="sb-item" data-view="requests">كل الطلبات</div>`;
     html += `<div class="sb-item" data-view="drafts">تدقيق المسودات</div>`;
     html += `<div class="sb-item" data-view="companies">الشركات</div>`;
+    html += `<div class="sb-item" data-view="team">الفريق</div>`;
+    html += `<div class="sb-item" data-view="audit">سجل التدقيق</div>`;
   }
   nav.innerHTML = html;
   nav.querySelectorAll('.sb-item').forEach(el => el.addEventListener('click', () => navigate(el.dataset.view, el.textContent)));
@@ -381,7 +383,7 @@ function renderBottomNav() {
       { view: 'dashboard', ico: '🏠', label: 'الرئيسية' },
       { view: 'requests', ico: '📋', label: 'الطلبات' },
       { view: 'drafts', ico: '📝', label: 'المسودات' },
-      { view: 'companies', ico: '🏢', label: 'الشركات' },
+      { view: 'team', ico: '👥', label: 'الفريق' },
     ];
   }
   bn.innerHTML = items.map(it => `
@@ -412,6 +414,8 @@ function renderContent() {
     else if (currentView === 'requests') renderAdminRequests();
     else if (currentView === 'drafts') renderAdminDrafts();
     else if (currentView === 'companies') renderAdminCompanies();
+    else if (currentView === 'team') renderAdminTeam();
+    else if (currentView === 'audit') renderAdminAuditLog();
     else if (currentView.startsWith('company:')) renderAdminCompanyDetail(currentView.split(':')[1]);
   }
 }
@@ -476,6 +480,29 @@ async function draftFileLinkHtml(draft) {
   return data?.signedUrl
     ? `<a href="${data.signedUrl}" target="_blank" class="btn btn-g btn-sm" style="display:inline-block">📎 عرض / تحميل ملف المسودة ←</a>`
     : `<div class="msg err">تعذر تحميل رابط الملف</div>`;
+}
+
+// Full version history for a request: v1 -> revision -> v2 -> ... with the
+// client-approved version clearly marked.
+const VERSION_STATUS_LABELS = {
+  pending_admin_review: 'بانتظار مراجعة المدير',
+  rejected_by_admin: 'مرفوضة من المدير',
+  approved_for_client: 'معتمدة، بانتظار العميل',
+  approved_by_client: '✅ اعتمدها العميل',
+  client_revision_requested: 'طلب العميل تعديلاً عليها',
+};
+async function versionHistoryHtml(requestId) {
+  const { data: drafts } = await sb.from('drafts').select('*').eq('request_id', requestId).order('version', { ascending: true });
+  if (!drafts || drafts.length === 0) return '';
+  const rows = drafts.map(d => {
+    const label = VERSION_STATUS_LABELS[d.status] || d.status;
+    const isApproved = d.status === 'approved_by_client';
+    return `<div style="display:flex;justify-content:space-between;gap:.5rem;padding:.4rem 0;border-top:1px solid var(--bd);${isApproved?'font-weight:700':''}">
+      <span class="req-meta" style="${isApproved?'color:var(--ok-t)':''}">النسخة ${d.version}${!d.file_path?' (بدون ملف)':''}</span>
+      <span class="req-meta" style="${isApproved?'color:var(--ok-t)':''}">${label}</span>
+    </div>`;
+  }).join('');
+  return `<div style="margin-top:.7rem"><div class="req-meta" style="font-weight:700;color:var(--t);margin-bottom:.2rem">📜 سجل إصدارات الملف</div>${rows}</div>`;
 }
 
 // ---- Inquiries thread (staff asks, client/admin answers) ----
@@ -658,6 +685,7 @@ async function renderClientServicePage(serviceId) {
     const finalHtml = await finalFileHtml(r);
     const inqHtml = await inquiriesHtml(r.id, 'client');
     const draftLinkHtml = visibleDraft ? await draftFileLinkHtml(visibleDraft) : '';
+    const versionHtml = await versionHistoryHtml(r.id);
 
     const card = document.createElement('div');
     card.className = `card ${priorityCardClass(r.priority)}`;
@@ -685,6 +713,7 @@ async function renderClientServicePage(serviceId) {
               <button class="btn btn-g btn-sm" style="margin-top:.5rem" data-send-revision="${visibleDraft.id}" data-req="${r.id}">إرسال الملاحظات ←</button>
             </div>` : ''}
         </div>` : ''}
+      ${versionHtml}
     `;
     listEl.appendChild(card);
     wireInquiryAnswerButtons(card, () => renderClientServicePage(serviceId));
@@ -831,12 +860,32 @@ async function renderClientArchive() {
   app.innerHTML = `<div class="section-title">الأرشيف — الطلبات المكتملة</div><div id="archiveList"></div>`;
   const el = document.getElementById('archiveList');
   if (!requests || requests.length === 0) { el.innerHTML = emptyState('🗄️', 'لا توجد طلبات مكتملة بعد', 'الطلبات المكتملة تنتقل هنا تلقائياً'); return; }
-  requests.forEach(r => {
+  for (const r of requests) {
+    const finalHtml = await finalFileHtml(r);
     const card = document.createElement('div');
     card.className = 'card';
-    card.innerHTML = `<div class="req-row"><div><div class="req-title">${r.title}</div><div class="req-meta">${r.services?.name_ar||''} · ${fmtDate(r.created_at)}</div></div>${statusBadge(r.status)}</div>`;
+    card.innerHTML = `
+      <div class="req-row"><div><div class="req-title">${r.title}</div><div class="req-meta">${r.services?.name_ar||''} · ${fmtDate(r.created_at)}</div></div>${statusBadge(r.status)}</div>
+      ${timestampsHtml(r)}
+      ${finalHtml}
+      <div style="margin-top:.8rem;border-top:1px solid var(--bd);padding-top:.8rem">
+        ${r.client_rating ? `
+          <div class="req-meta"><strong style="color:var(--t)">تقييمك للخدمة:</strong> ${'⭐'.repeat(r.client_rating)}${'☆'.repeat(5-r.client_rating)}</div>
+        ` : `
+          <label>كيف كانت تجربتك مع هذا الطلب؟</label>
+          <div class="upload-row" data-rate-request="${r.id}">
+            ${[1,2,3,4,5].map(n => `<button class="btn btn-o btn-sm" data-star="${n}">${'⭐'.repeat(n)}</button>`).join('')}
+          </div>
+        `}
+      </div>
+    `;
     el.appendChild(card);
-  });
+    card.querySelectorAll('[data-star]').forEach(btn => btn.addEventListener('click', async () => {
+      const n = parseInt(btn.dataset.star);
+      const ok = await runOrAlert(sb.from('requests').update({ client_rating: n }).eq('id', r.id), 'تعذر حفظ تقييمك');
+      if (ok) renderClientArchive();
+    }));
+  }
 }
 
 async function renderStaffDashboard() {
@@ -1126,10 +1175,22 @@ async function renderAdminDashboard() {
 }
 
 async function renderAdminRequests() {
-  const [{ data: requests }, { data: staffList }] = await Promise.all([
+  const [{ data: requests }, { data: staffList }, { data: allAssigned }] = await Promise.all([
     sb.from('requests').select('*, services(name_ar), companies(name, cr_number)').order('created_at', { ascending: false }),
     sb.from('profiles').select('*').eq('role', 'staff').eq('is_active', true),
+    sb.from('requests').select('assigned_staff_id, status, quality_rating').not('assigned_staff_id', 'is', null),
   ]);
+
+  // quick workload/quality snapshot per staff, shown right in the assign dropdown
+  const staffSnapshot = {};
+  (staffList||[]).forEach(s => {
+    const mine = (allAssigned||[]).filter(r => r.assigned_staff_id === s.id);
+    const active = mine.filter(r => r.status !== 'completed').length;
+    const rated = mine.filter(r => r.quality_rating);
+    const avgQ = rated.length ? (rated.reduce((a,r)=>a+r.quality_rating,0)/rated.length).toFixed(1) : '—';
+    staffSnapshot[s.id] = `${s.full_name} — ${active} نشطة${active>=3?' 🔴':' 🟢'} · جودة ${avgQ}`;
+  });
+
   app.innerHTML = `<div id="allRequests"></div>`;
   const el = document.getElementById('allRequests');
   if (!requests || requests.length === 0) { el.innerHTML = emptyState('📋', 'لا توجد طلبات بعد', 'ستظهر هنا فور استلام أول طلب من العملاء'); return; }
@@ -1139,6 +1200,7 @@ async function renderAdminRequests() {
     const attachHtml = await attachmentsHtml(r.id);
     const finalHtml = await finalFileHtml(r);
     const inqHtml = await inquiriesHtml(r.id, 'admin');
+    const versionHtml = await versionHistoryHtml(r.id);
     const card = document.createElement('div');
     card.className = `card ${priorityCardClass(r.priority)}`;
     card.innerHTML = `
@@ -1151,20 +1213,30 @@ async function renderAdminRequests() {
       ${attachHtml}
       ${inqHtml}
       ${finalHtml}
+      ${versionHtml}
       <div style="margin-top:.7rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
         <select data-priority-select="${r.id}" style="max-width:130px">
           <option value="normal" ${r.priority==='normal'?'selected':''}>عادي</option>
           <option value="urgent" ${r.priority==='urgent'?'selected':''}>🔴 عاجل</option>
         </select>
         ${needsAssignment ? `
-          <select id="assign-${r.id}" style="max-width:220px"><option value="">إسناد إلى...</option>${(staffList||[]).map(s=>`<option value="${s.id}">${s.full_name}</option>`).join('')}</select>
+          <select id="assign-${r.id}" style="max-width:280px"><option value="">إسناد إلى...</option>${(staffList||[]).map(s=>`<option value="${s.id}">${staffSnapshot[s.id]}</option>`).join('')}</select>
           <input id="expected-hours-${r.id}" type="number" min="0" step="0.5" placeholder="الوقت المتوقع (ساعة)" style="max-width:170px">
           <button class="btn btn-g btn-sm" data-assign-btn="${r.id}">إسناد ←</button>` : ''}
+        ${r.status === 'completed' ? `
+          <select data-quality-select="${r.id}" style="max-width:170px">
+            <option value="">تقييم جودة العمل...</option>
+            ${[5,4,3,2,1].map(n => `<option value="${n}" ${r.quality_rating==n?'selected':''}>${'⭐'.repeat(n)} (${n})</option>`).join('')}
+          </select>` : ''}
       </div>
     `;
     el.appendChild(card);
     wireInquiryAnswerButtons(card, () => renderAdminRequests());
   }
+  el.querySelectorAll('[data-quality-select]').forEach(sel => sel.addEventListener('change', async () => {
+    const ok = await runOrAlert(sb.from('requests').update({ quality_rating: parseInt(sel.value) }).eq('id', sel.dataset.qualitySelect), 'تعذر حفظ التقييم');
+    if (ok) renderAdminRequests();
+  }));
   el.querySelectorAll('[data-priority-select]').forEach(sel => sel.addEventListener('change', async () => {
     const ok = await runOrAlert(sb.from('requests').update({ priority: sel.value }).eq('id', sel.dataset.prioritySelect), 'تعذر تحديث الأولوية');
     if (ok) renderAdminRequests();
@@ -1329,6 +1401,243 @@ async function renderAdminCompanyDetail(companyId) {
     `;
     el.appendChild(card);
   });
+}
+
+// =====================================================================
+// ADMIN: TEAM SCORECARDS (speed, quality, workload, reach — per staff)
+// =====================================================================
+async function renderAdminTeam() {
+  const [{ data: staffList }, { data: allRequests }, { data: allDrafts }] = await Promise.all([
+    sb.from('profiles').select('*').eq('role', 'staff').eq('is_active', true),
+    sb.from('requests').select('*, services(name_ar)').not('assigned_staff_id', 'is', null),
+    sb.from('drafts').select('id, request_id, status, submitted_by'),
+  ]);
+
+  if (!staffList || staffList.length === 0) {
+    app.innerHTML = `<div id="teamList"></div>`;
+    document.getElementById('teamList').innerHTML = emptyState('👥', 'لا يوجد فريق عمل مسجّل بعد', '');
+    return;
+  }
+
+  const servicesInvolved = [...new Map((allRequests||[]).filter(r=>r.services).map(r=>[r.services.name_ar, r.services])).values()];
+  const LEADERBOARDS = [
+    { key: 'overall', label: 'الأداء العام' },
+    { key: 'speed', label: 'الأسرع' },
+    { key: 'quality', label: 'الأعلى جودة' },
+    { key: 'ontime', label: 'الأكثر التزامًا' },
+    { key: 'capacity', label: 'الأكثر تحمّلًا' },
+  ];
+
+  app.innerHTML = `
+    <div class="card">
+      <div class="upload-row" id="teamLeaderboardTabs">
+        ${LEADERBOARDS.map((lb,i) => `<button class="btn ${i===0?'btn-g':'btn-o'} btn-sm" data-lb="${lb.key}">${lb.label}</button>`).join('')}
+      </div>
+      ${servicesInvolved.length ? `
+        <div style="margin-top:.8rem">
+          <label>تصفية حسب الخدمة</label>
+          <select id="teamServiceFilter">
+            <option value="">كل الخدمات</option>
+            ${servicesInvolved.map(s => `<option value="${s.name_ar}">${s.name_ar}</option>`).join('')}
+          </select>
+        </div>` : ''}
+    </div>
+    <div id="teamList"></div>
+  `;
+
+  // Build a scorecard per staff member
+  const scorecards = staffList.map(staff => {
+    const mine = (allRequests || []).filter(r => r.assigned_staff_id === staff.id);
+    const activeTasks = mine.filter(r => r.status !== 'completed');
+    const completedTasks = mine.filter(r => r.status === 'completed');
+    const servicesHandled = [...new Map(mine.filter(r=>r.services).map(r=>[r.services.name_ar, r.services])).values()];
+    const companiesAllTime = new Set(mine.filter(r=>r.company_id).map(r=>r.company_id));
+    const companiesActive = new Set(activeTasks.filter(r=>r.company_id).map(r=>r.company_id));
+
+    const rated = completedTasks.filter(r => r.quality_rating);
+    const avgQuality = rated.length ? rated.reduce((s,r)=>s+r.quality_rating,0)/rated.length : null;
+
+    const clientRated = completedTasks.filter(r => r.client_rating);
+    const avgClientRating = clientRated.length ? clientRated.reduce((s,r)=>s+r.client_rating,0)/clientRated.length : null;
+
+    const timed = completedTasks.filter(r => r.started_at && r.completed_at);
+    const avgHours = timed.length ? timed.reduce((s,r)=> s + (new Date(r.completed_at)-new Date(r.started_at))/3600000, 0) / timed.length : null;
+
+    const withExpected = timed.filter(r => r.expected_hours);
+    let avgSpeed = null, onTimePct = null;
+    if (withExpected.length) {
+      const speedScores = withExpected.map(r => {
+        const actualHours = (new Date(r.completed_at) - new Date(r.started_at)) / 3600000;
+        const ratio = r.expected_hours / Math.max(actualHours, 0.01);
+        if (ratio >= 1.2) return 5;
+        if (ratio >= 1.0) return 4;
+        if (ratio >= 0.8) return 3;
+        if (ratio >= 0.6) return 2;
+        return 1;
+      });
+      avgSpeed = speedScores.reduce((a,b)=>a+b,0) / speedScores.length;
+      const onTimeCount = withExpected.filter(r => {
+        const actualHours = (new Date(r.completed_at) - new Date(r.started_at)) / 3600000;
+        return actualHours <= r.expected_hours;
+      }).length;
+      onTimePct = Math.round((onTimeCount / withExpected.length) * 100);
+    }
+
+    // revision rate: of requests this staff submitted at least one draft for,
+    // what % ever got a 'client_revision_requested' draft
+    const myRequestIds = new Set(mine.map(r=>r.id));
+    const myDrafts = (allDrafts||[]).filter(d => myRequestIds.has(d.request_id));
+    const requestsWithDrafts = new Set(myDrafts.map(d=>d.request_id));
+    const requestsWithRevision = new Set(myDrafts.filter(d=>d.status==='client_revision_requested').map(d=>d.request_id));
+    const revisionRate = requestsWithDrafts.size ? Math.round((requestsWithRevision.size / requestsWithDrafts.size) * 100) : null;
+
+    let overall = null;
+    const parts = [avgQuality, avgSpeed, avgClientRating].filter(v => v !== null);
+    if (parts.length) overall = parts.reduce((a,b)=>a+b,0) / parts.length;
+
+    return { staff, activeCount: activeTasks.length, completedCount: completedTasks.length, totalCount: mine.length,
+             servicesHandled, companiesAllTime: companiesAllTime.size, companiesActive: companiesActive.size,
+             avgQuality, avgClientRating, avgSpeed, avgHours, onTimePct, revisionRate, overall };
+  });
+
+  function starsHtml(n) {
+    if (n === null) return `<span class="req-meta">لا توجد بيانات كافية بعد</span>`;
+    const full = Math.round(n);
+    return `${'⭐'.repeat(full)}${'☆'.repeat(5-full)} <span class="req-meta">(${n.toFixed(1)})</span>`;
+  }
+  function hoursHtml(h) {
+    if (h === null) return '—';
+    if (h < 24) return `${h.toFixed(1)} ساعة`;
+    return `${(h/24).toFixed(1)} يوم`;
+  }
+
+  let currentLb = 'overall';
+
+  function sortFor(lb, list) {
+    const sorted = [...list];
+    if (lb === 'speed') sorted.sort((a,b) => (b.avgSpeed ?? -1) - (a.avgSpeed ?? -1));
+    else if (lb === 'quality') sorted.sort((a,b) => (b.avgQuality ?? -1) - (a.avgQuality ?? -1));
+    else if (lb === 'ontime') sorted.sort((a,b) => (b.onTimePct ?? -1) - (a.onTimePct ?? -1));
+    else if (lb === 'capacity') sorted.sort((a,b) => b.totalCount - a.totalCount);
+    else sorted.sort((a,b) => (b.overall ?? -1) - (a.overall ?? -1));
+    return sorted;
+  }
+
+  function renderList(filterService) {
+    const listEl = document.getElementById('teamList');
+    listEl.innerHTML = '';
+    let list = filterService ? scorecards.filter(sc => sc.servicesHandled.some(s=>s.name_ar===filterService)) : scorecards;
+    list = sortFor(currentLb, list);
+    if (!list.length) { listEl.innerHTML = emptyState('👥', 'لا يوجد موظفون ضمن هذه الخدمة بعد', ''); return; }
+
+    list.forEach((sc, i) => {
+      const rankBadge = i===0 ? '🥇 ' : i===1 ? '🥈 ' : i===2 ? '🥉 ' : '';
+      const busy = sc.activeCount >= 3;
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <div class="req-row">
+          <div>
+            <div class="req-title">${rankBadge}${sc.staff.full_name}</div>
+            <div class="req-meta">${sc.servicesHandled.map(s=>s.name_ar).join(' · ') || 'لم يُسند له عمل بعد'}</div>
+          </div>
+          <span class="badge ${busy?'b-review':'b-active'}">${busy?'🔴 مشغول':'🟢 متاح'} · ${sc.activeCount} نشطة</span>
+        </div>
+        <div class="stats" style="margin-top:.9rem;margin-bottom:0">
+          <div class="stat"><div class="n">${sc.totalCount}</div><div class="l">إجمالي المهام</div></div>
+          <div class="stat"><div class="n">${sc.completedCount}</div><div class="l">مهام منجزة</div></div>
+          <div class="stat"><div class="n">${sc.companiesActive}</div><div class="l">شركات نشطة الآن</div></div>
+          <div class="stat"><div class="n">${sc.companiesAllTime}</div><div class="l">إجمالي الشركات</div></div>
+        </div>
+        <div style="margin-top:.9rem;border-top:1px solid var(--bd);padding-top:.9rem">
+          <div class="req-meta" style="margin-bottom:.4rem"><strong style="color:var(--t)">تقييم جودة العمل (الإدارة):</strong> ${starsHtml(sc.avgQuality)}</div>
+          <div class="req-meta" style="margin-bottom:.4rem"><strong style="color:var(--t)">تقييم العملاء:</strong> ${starsHtml(sc.avgClientRating)}</div>
+          <div class="req-meta" style="margin-bottom:.4rem"><strong style="color:var(--t)">تقييم السرعة:</strong> ${starsHtml(sc.avgSpeed)}</div>
+          <div class="req-meta" style="margin-bottom:.4rem"><strong style="color:var(--t)">متوسط وقت الإنجاز:</strong> ${hoursHtml(sc.avgHours)}</div>
+          <div class="req-meta" style="margin-bottom:.4rem"><strong style="color:var(--t)">الالتزام بالوقت المتوقع:</strong> ${sc.onTimePct!==null ? sc.onTimePct+'%' : '—'}</div>
+          <div class="req-meta"><strong style="color:var(--t)">نسبة إعادة العمل للتعديل:</strong> ${sc.revisionRate!==null ? sc.revisionRate+'%' : '—'}</div>
+        </div>
+        <button class="btn btn-o btn-sm" style="margin-top:.8rem" data-toggle-detail="${sc.staff.id}">عرض تفاصيل المهام ←</button>
+        <div id="detail-${sc.staff.id}" style="display:none;margin-top:.8rem"></div>
+      `;
+      listEl.appendChild(card);
+
+      card.querySelector('[data-toggle-detail]').addEventListener('click', async () => {
+        const box = document.getElementById(`detail-${sc.staff.id}`);
+        if (box.style.display === 'block') { box.style.display = 'none'; return; }
+        const mine = (allRequests||[]).filter(r => r.assigned_staff_id === sc.staff.id).sort((a,b)=> new Date(b.created_at)-new Date(a.created_at));
+        box.innerHTML = mine.length ? mine.map(r => `
+          <div style="padding:.6rem 0;border-top:1px solid var(--bd);display:flex;justify-content:space-between;gap:.5rem;flex-wrap:wrap">
+            <span class="req-meta">${r.title} — ${r.services?.name_ar||''}</span>
+            <span class="req-meta">${statusBadge(r.status)} ${r.quality_rating?`· جودة: ${'⭐'.repeat(r.quality_rating)}`:''} ${r.client_rating?`· عميل: ${'⭐'.repeat(r.client_rating)}`:''}</span>
+          </div>`).join('') : `<div class="req-meta">لا توجد مهام</div>`;
+        box.style.display = 'block';
+      });
+    });
+  }
+
+  document.getElementById('teamServiceFilter')?.addEventListener('change', e => renderList(e.target.value));
+  document.querySelectorAll('#teamLeaderboardTabs [data-lb]').forEach(btn => btn.addEventListener('click', () => {
+    currentLb = btn.dataset.lb;
+    document.querySelectorAll('#teamLeaderboardTabs [data-lb]').forEach(b => b.className = 'btn btn-o btn-sm');
+    btn.className = 'btn btn-g btn-sm';
+    renderList(document.getElementById('teamServiceFilter')?.value || '');
+  }));
+  renderList('');
+}
+
+// =====================================================================
+// ADMIN: AUDIT LOG — who did what, and when
+// =====================================================================
+const AUDIT_ACTION_LABELS = {
+  created: '📄 أُنشئ الطلب',
+  assigned: '👤 أُسند لموظف',
+  assignment_rejected: '↩️ رفض الموظف الإسناد',
+  started: '▶️ بدأ التنفيذ',
+  draft_uploaded: '📤 رفع مسودة',
+  draft_approved: '✅ اعتمد المدير المسودة',
+  draft_rejected: '❌ رفض المدير المسودة',
+  client_approved: '✅ اعتمد العميل المسودة',
+  client_revision_requested: '✏️ طلب العميل تعديلاً',
+  final_uploaded: '📄 رُفع الملف النهائي',
+  completed: '🏁 اكتمل الطلب',
+  company_edited: '🏢 عُدّلت بيانات الشركة',
+  company_activated: '🔓 فُعّلت الشركة',
+};
+
+async function renderAdminAuditLog() {
+  const { data: logs } = await sb.from('audit_log').select('*, profiles(full_name)').order('created_at', { ascending: false }).limit(200);
+  app.innerHTML = `
+    <div class="card">
+      <label>تصفية حسب نوع الإجراء</label>
+      <select id="auditActionFilter">
+        <option value="">كل الإجراءات</option>
+        ${Object.entries(AUDIT_ACTION_LABELS).map(([k,v]) => `<option value="${k}">${v}</option>`).join('')}
+      </select>
+    </div>
+    <div id="auditList"></div>
+  `;
+
+  function renderLogs(filterAction) {
+    const el = document.getElementById('auditList');
+    const filtered = filterAction ? (logs||[]).filter(l => l.action === filterAction) : (logs||[]);
+    if (!filtered.length) { el.innerHTML = emptyState('🧾', 'لا يوجد سجل تدقيق بعد', ''); return; }
+    el.innerHTML = filtered.map(l => `
+      <div class="card" style="padding:.9rem 1.1rem">
+        <div class="req-row">
+          <span class="req-title" style="font-size:.85rem">${AUDIT_ACTION_LABELS[l.action] || l.action}</span>
+          <span class="req-meta">${timeAgo(l.created_at)}</span>
+        </div>
+        <div class="req-meta" style="margin-top:.3rem">
+          بواسطة: ${l.profiles?.full_name || 'النظام'} (${roleLabel(l.actor_role) || '—'})
+          · النوع: ${l.entity_type}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  document.getElementById('auditActionFilter').addEventListener('change', e => renderLogs(e.target.value));
+  renderLogs('');
 }
 
 init();
