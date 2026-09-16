@@ -1332,7 +1332,7 @@ async function renderAdminCompanies() {
     card.className = 'card';
     card.innerHTML = `
       <div class="req-row" style="cursor:pointer" data-open-company="${c.id}">
-        <div><div class="req-title">🏢 ${c.name}</div><div class="req-meta">السجل التجاري: ${c.cr_number || '—'} · ${c.entity_type || ''} · سُجلت ${fmtDate(c.created_at)}</div></div>
+        <div><div class="req-title">🏢 ${c.name} ${c.source_system === 'start' ? `<span class="badge" style="background:#EAF2EE;color:#1E3A2F;font-size:.68rem;">🔗 من Start</span>` : ''}</div><div class="req-meta">السجل التجاري: ${c.cr_number || '—'} · ${c.entity_type || ''} · سُجلت ${fmtDate(c.created_at)}</div></div>
         ${c.is_active ? `<span class="badge b-active">مفعّلة</span>` : `<span class="badge b-pending">بانتظار التفعيل</span>`}
       </div>
       <div style="margin-top:.7rem;display:flex;gap:.5rem">
@@ -1394,7 +1394,7 @@ async function renderAdminCompanyDetail(companyId) {
   app.innerHTML = `
     <div class="card">
       <div class="req-row">
-        <div><div class="req-title" style="font-size:1.1rem">🏢 ${company.name}</div><div class="req-meta">السجل التجاري: ${company.cr_number||'—'} · ${company.entity_type||''}</div></div>
+        <div><div class="req-title" style="font-size:1.1rem">🏢 ${company.name} ${company.source_system === 'start' ? `<span class="badge" style="background:#EAF2EE;color:#1E3A2F;font-size:.68rem;">🔗 من Start</span>` : ''}</div><div class="req-meta">السجل التجاري: ${company.cr_number||'—'} · ${company.entity_type||''}${company.investor_email ? ' · بريد المستثمر: '+company.investor_email : ''}</div></div>
         ${company.is_active ? `<span class="badge b-active">مفعّلة</span>` : `<span class="badge b-pending">بانتظار التفعيل</span>`}
       </div>
     </div>
