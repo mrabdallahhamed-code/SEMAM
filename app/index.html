@@ -415,6 +415,8 @@ function renderContent() {
     else if (currentView === 'archive') renderClientArchive();
   } else if (CURRENT_PROFILE.role === 'staff') {
     if (currentView === 'dashboard') renderStaffDashboard();
+    else if (currentView === 'companies') renderAdminCompanies();
+    else if (currentView.startsWith('company:')) renderAdminCompanyDetail(currentView.split(':')[1]);
     else renderStaffTasks();
   } else if (CURRENT_PROFILE.role === 'admin') {
     if (currentView === 'dashboard') renderAdminDashboard();
