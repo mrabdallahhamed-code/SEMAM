@@ -351,6 +351,7 @@ function renderSidebar() {
     html += `<div class="sb-item" data-view="archive">الأرشيف</div>`;
   } else if (CURRENT_PROFILE.role === 'staff') {
     html += `<div class="sb-item" data-view="tasks">مهامي</div>`;
+    html += `<div class="sb-item" data-view="companies">الشركات والمواعيد</div>`;
   } else if (CURRENT_PROFILE.role === 'admin') {
     html += `<div class="sb-item" data-view="requests">كل الطلبات</div>`;
     html += `<div class="sb-item" data-view="drafts">تدقيق المسودات</div>`;
@@ -1384,6 +1385,7 @@ async function renderAdminReminderTemplates() {
         <div><label>وصف (اختياري)</label><input id="new-tpl-desc" placeholder=""></div>
         <div><label>تذكير قبل الاستحقاق بكم يوم؟</label><input id="new-tpl-days" type="number" value="14"></div>
         <div><label>التكرار</label><select id="new-tpl-recur"><option value="monthly">شهرياً</option><option value="quarterly">ربع سنوي (كل 3 شهور)</option><option value="yearly" selected>سنوياً</option></select></div>
+        <div><label>تكرار التذكير يومياً؟ (اختياري — اتركه فاضي لتنبيه مرة وحدة)</label><input id="new-tpl-daily" type="number" placeholder="مثال: 30 يوم متواصل"></div>
         <button class="btn btn-g btn-sm" id="addTemplateBtn">إضافة قالب جديد ←</button>
       </div>
       <div id="new-tpl-msg"></div>
@@ -1409,9 +1411,11 @@ async function renderAdminReminderTemplates() {
             <option value="yearly" ${t.default_recurrence==='yearly'?'selected':''}>سنوياً</option>
           </select>
         </div>
+        <div style="grid-column:1/-1;"><label>تكرار التذكير يومياً؟ (اختياري — فاضي = تنبيه مرة وحدة)</label><input id="tpl-daily-${t.id}" type="number" value="${t.reminder_daily_for_days || ''}" placeholder="مثال: 30"></div>
       </div>
-      <div style="display:flex;gap:.5rem;margin-top:.6rem;">
-        <button class="btn btn-g btn-sm" data-save-tpl="${t.id}">حفظ ←</button>
+      <div style="display:flex;gap:.5rem;margin-top:.6rem;flex-wrap:wrap;">
+        <button class="btn btn-g btn-sm" data-save-tpl="${t.id}">حفظ (قالب مستقبلي فقط) ←</button>
+        <button class="btn btn-g btn-sm" data-save-apply-tpl="${t.id}" style="background:#0F5132;">حفظ + طبّق على الشركات الموجودة ←</button>
         <button class="btn btn-o btn-sm" data-toggle-tpl="${t.id}" data-active="${t.is_active}">${t.is_active ? 'تعطيل هذا القالب' : 'تفعيل هذا القالب'}</button>
       </div>
       <div id="tpl-msg-${t.id}"></div>
@@ -1419,13 +1423,26 @@ async function renderAdminReminderTemplates() {
     el.appendChild(card);
   });
 
-  el.querySelectorAll('[data-save-tpl]').forEach(btn => btn.addEventListener('click', async () => {
-    const id = btn.dataset.saveTpl;
+  async function saveTemplate(id, alsoApply) {
     const days = parseInt(document.getElementById(`tpl-days-${id}`).value) || 14;
     const recur = document.getElementById(`tpl-recur-${id}`).value;
-    const { error } = await sb.from('reminder_templates').update({ default_reminder_days_before: days, default_recurrence: recur }).eq('id', id);
-    document.getElementById(`tpl-msg-${id}`).innerHTML = error ? `<div class="msg err">${error.message}</div>` : `<div class="msg ok">تم الحفظ. (ملاحظة: هذا يغيّر القالب لأي شركة جديدة مستقبلاً، مو الشركات اللي عندها التذكير أصلاً)</div>`;
-  }));
+    const dailyRaw = document.getElementById(`tpl-daily-${id}`).value;
+    const daily = dailyRaw ? parseInt(dailyRaw) : null;
+    const { error } = await sb.from('reminder_templates').update({ default_reminder_days_before: days, default_recurrence: recur, reminder_daily_for_days: daily }).eq('id', id);
+    if (error) { document.getElementById(`tpl-msg-${id}`).innerHTML = `<div class="msg err">${error.message}</div>`; return; }
+
+    if (alsoApply) {
+      const { error: applyErr } = await sb.from('compliance_reminders')
+        .update({ reminder_days_before: days, recurrence: recur, reminder_daily_for_days: daily })
+        .eq('template_id', id).eq('status', 'pending');
+      document.getElementById(`tpl-msg-${id}`).innerHTML = applyErr ? `<div class="msg err">${applyErr.message}</div>` : `<div class="msg ok">تم الحفظ وتطبيقه على كل الشركات اللي عندها هذا التذكير حالياً. ✓</div>`;
+    } else {
+      document.getElementById(`tpl-msg-${id}`).innerHTML = `<div class="msg ok">تم الحفظ (يسري على الشركات الجديدة فقط — اضغط "طبّق على الشركات الموجودة" لو تبي تحديث الحاليين).</div>`;
+    }
+  }
+
+  el.querySelectorAll('[data-save-tpl]').forEach(btn => btn.addEventListener('click', () => saveTemplate(btn.dataset.saveTpl, false)));
+  el.querySelectorAll('[data-save-apply-tpl]').forEach(btn => btn.addEventListener('click', () => saveTemplate(btn.dataset.saveApplyTpl, true)));
 
   el.querySelectorAll('[data-toggle-tpl]').forEach(btn => btn.addEventListener('click', async () => {
     const id = btn.dataset.toggleTpl;
@@ -1439,8 +1456,10 @@ async function renderAdminReminderTemplates() {
     const desc = document.getElementById('new-tpl-desc').value.trim();
     const days = parseInt(document.getElementById('new-tpl-days').value) || 14;
     const recur = document.getElementById('new-tpl-recur').value;
+    const dailyRaw = document.getElementById('new-tpl-daily').value;
+    const daily = dailyRaw ? parseInt(dailyRaw) : null;
     if (!title) { document.getElementById('new-tpl-msg').innerHTML = `<div class="msg err">أدخل عنوان القالب</div>`; return; }
-    const { error } = await sb.from('reminder_templates').insert({ title, description: desc, default_reminder_days_before: days, default_recurrence: recur });
+    const { error } = await sb.from('reminder_templates').insert({ title, description: desc, default_reminder_days_before: days, default_recurrence: recur, reminder_daily_for_days: daily });
     document.getElementById('new-tpl-msg').innerHTML = error ? `<div class="msg err">${error.message}</div>` : `<div class="msg ok">تمت الإضافة.</div>`;
     if (!error) renderAdminReminderTemplates();
   });
@@ -1482,7 +1501,6 @@ async function renderAdminCompanies() {
     const companyId = btn.dataset.activate;
     const ok = await runOrAlert(sb.from('companies').update({ is_active: true, activated_at: new Date().toISOString() }).eq('id', companyId), 'تعذر تفعيل المنشأة');
     if (ok) {
-      await seedComplianceReminders(companyId);
       renderAdminCompanies();
     }
   }));
@@ -1537,7 +1555,10 @@ async function renderAdminCompanyDetail(companyId) {
     <div id="remindersList"></div>
     <div class="card">
       <div style="display:grid;gap:.6rem">
-        <div><label>عنوان التذكير</label><input id="new-rem-title" placeholder="مثال: سداد رسوم بلدية"></div>
+        <div><label>عنوان التذكير</label>
+          <input id="new-rem-title" list="rem-suggestions" placeholder="اختر من المقترحات أو اكتب بند جديد">
+          <datalist id="rem-suggestions"></datalist>
+        </div>
         <div><label>تاريخ الاستحقاق</label><input id="new-rem-date" type="date"></div>
         <div><label>التذكير قبل الاستحقاق بكم يوم؟</label><input id="new-rem-days" type="number" value="14"></div>
         <div><label>التكرار</label><select id="new-rem-recur"><option value="none">مرة واحدة فقط</option><option value="monthly">شهرياً</option><option value="quarterly">ربع سنوي (كل 3 شهور)</option><option value="yearly" selected>سنوياً</option></select></div>
@@ -1550,6 +1571,8 @@ async function renderAdminCompanyDetail(companyId) {
   `;
 
   loadReminders(companyId);
+  loadReminderSuggestions();
+
   document.getElementById('addReminderBtn').addEventListener('click', async () => {
     const title = document.getElementById('new-rem-title').value.trim();
     const due = document.getElementById('new-rem-date').value;
@@ -1574,6 +1597,25 @@ async function renderAdminCompanyDetail(companyId) {
       ${progressBarHtml(r.status)}
     `;
     el.appendChild(card);
+  });
+}
+
+let _reminderTemplatesCache = null;
+async function loadReminderSuggestions() {
+  if (!_reminderTemplatesCache) {
+    const { data } = await sb.from('reminder_templates').select('*').eq('is_active', true).order('title');
+    _reminderTemplatesCache = data || [];
+  }
+  const dl = document.getElementById('rem-suggestions');
+  dl.innerHTML = _reminderTemplatesCache.map(t => `<option value="${t.title}">`).join('');
+
+  const titleInput = document.getElementById('new-rem-title');
+  titleInput.addEventListener('input', () => {
+    const match = _reminderTemplatesCache.find(t => t.title === titleInput.value);
+    if (match) {
+      document.getElementById('new-rem-days').value = match.default_reminder_days_before;
+      document.getElementById('new-rem-recur').value = match.default_recurrence;
+    }
   });
 }
 
