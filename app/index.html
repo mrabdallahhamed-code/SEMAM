@@ -357,6 +357,7 @@ function renderSidebar() {
     html += `<div class="sb-item" data-view="drafts">تدقيق المسودات</div>`;
     html += `<div class="sb-item" data-view="companies">الشركات</div>`;
     html += `<div class="sb-item" data-view="reminder-templates">📅 قوالب التذكيرات</div>`;
+    html += `<div class="sb-item" data-view="credentials">🔐 كلمات السر</div>`;
     html += `<div class="sb-item" data-view="team">الفريق</div>`;
     html += `<div class="sb-item" data-view="audit">سجل التدقيق</div>`;
   }
@@ -408,7 +409,6 @@ function renderContent() {
     if (currentView === 'dashboard') renderClientDashboard();
     else if (currentView === 'my-requests') renderClientAllRequests();
     else if (currentView === 'my-reminders') renderClientReminders();
-    else if (currentView === 'reminder-templates') renderAdminReminderTemplates();
     else if (currentView.startsWith('service:')) renderClientServicePage(currentView.split(':')[1]);
     else if (currentView === 'profile') renderClientProfile();
     else if (currentView === 'documents') renderClientDocuments();
@@ -425,6 +425,8 @@ function renderContent() {
     else if (currentView === 'companies') renderAdminCompanies();
     else if (currentView === 'team') renderAdminTeam();
     else if (currentView === 'audit') renderAdminAuditLog();
+    else if (currentView === 'reminder-templates') renderAdminReminderTemplates();
+    else if (currentView === 'credentials') renderAdminCredentials();
     else if (currentView.startsWith('company:')) renderAdminCompanyDetail(currentView.split(':')[1]);
   }
 }
@@ -1376,6 +1378,92 @@ async function seedComplianceReminders(companyId) {
     };
   });
   await sb.from('compliance_reminders').insert(rows);
+}
+
+const CRED_CATEGORIES = { government: 'منصة حكومية', social_media: 'حساب سوشيال ميديا', other: 'أخرى' };
+
+async function renderAdminCredentials() {
+  const { data: creds, error } = await sb.rpc('list_credentials');
+  app.innerHTML = `<div class="section-title">🔐 كلمات السر المحفوظة</div>
+    <p style="font-size:.82rem;color:#5A7A68;margin-bottom:1rem;">مشفّرة بالكامل — الأدمن بس يقدر يكشفها.</p>
+    <div id="credsList"></div>
+    <div class="card">
+      <div style="display:grid;gap:.6rem" id="cred-form">
+        <input type="hidden" id="cred-id" value="">
+        <div><label>اسم المنصة</label><input id="cred-platform" placeholder="مثال: منصة قوى"></div>
+        <div><label>التصنيف</label><select id="cred-category">
+          <option value="government">منصة حكومية</option>
+          <option value="social_media">حساب سوشيال ميديا</option>
+          <option value="other">أخرى</option>
+        </select></div>
+        <div><label>اسم المستخدم / البريد</label><input id="cred-username" placeholder=""></div>
+        <div><label>كلمة السر</label><input id="cred-password" type="password" placeholder="اكتبها هنا، بتُشفّر تلقائياً وقت الحفظ"></div>
+        <div><label>ملاحظات (اختياري)</label><input id="cred-notes" placeholder=""></div>
+        <button class="btn btn-g btn-sm" id="saveCredBtn">حفظ ←</button>
+      </div>
+      <div id="cred-msg"></div>
+    </div>
+  `;
+
+  const el = document.getElementById('credsList');
+  if (error) { el.innerHTML = `<div class="card"><div class="msg err">${error.message}</div></div>`; }
+  else if (!creds || !creds.length) { el.innerHTML = `<div class="card"><div class="req-meta">لا توجد بيانات محفوظة بعد.</div></div>`; }
+  else {
+    creds.forEach(c => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <div class="req-row">
+          <div><div class="req-title">${c.platform_name}</div><div class="req-meta">${CRED_CATEGORIES[c.category] || c.category} ${c.username ? '· ' + c.username : ''}</div></div>
+          <span class="badge b-active">🔒 محفوظة</span>
+        </div>
+        ${c.notes ? `<div class="req-meta" style="margin-top:.4rem;">${c.notes}</div>` : ''}
+        <div style="display:flex;gap:.5rem;margin-top:.6rem;flex-wrap:wrap;">
+          <button class="btn btn-o btn-sm" data-reveal="${c.id}">👁️ كشف كلمة السر</button>
+          <button class="btn btn-o btn-sm" data-edit-cred='${JSON.stringify({id:c.id,platform_name:c.platform_name,category:c.category,username:c.username,notes:c.notes})}'>تعديل البيانات</button>
+        </div>
+        <div id="reveal-${c.id}" style="margin-top:.5rem;"></div>
+      `;
+      el.appendChild(card);
+    });
+
+    el.querySelectorAll('[data-reveal]').forEach(btn => btn.addEventListener('click', async () => {
+      const id = btn.dataset.reveal;
+      const box = document.getElementById('reveal-' + id);
+      box.innerHTML = 'جارٍ فك التشفير...';
+      const { data, error: revErr } = await sb.rpc('reveal_credential', { p_id: id });
+      box.innerHTML = revErr ? `<div class="msg err">${revErr.message}</div>` : `<div class="note-box" style="direction:ltr;text-align:left;font-family:monospace;">${data || '(لا توجد كلمة سر محفوظة)'}</div>`;
+    }));
+
+    el.querySelectorAll('[data-edit-cred]').forEach(btn => btn.addEventListener('click', () => {
+      const d = JSON.parse(btn.dataset.editCred);
+      document.getElementById('cred-id').value = d.id;
+      document.getElementById('cred-platform').value = d.platform_name || '';
+      document.getElementById('cred-category').value = d.category || 'other';
+      document.getElementById('cred-username').value = d.username || '';
+      document.getElementById('cred-notes').value = d.notes || '';
+      document.getElementById('cred-password').value = '';
+      document.getElementById('cred-password').placeholder = 'اتركها فاضية لو ما تبي تغيّر كلمة السر الحالية';
+      document.getElementById('cred-form').scrollIntoView({ behavior: 'smooth' });
+    }));
+  }
+
+  document.getElementById('saveCredBtn').addEventListener('click', async () => {
+    const id = document.getElementById('cred-id').value || null;
+    const platform = document.getElementById('cred-platform').value.trim();
+    const category = document.getElementById('cred-category').value;
+    const username = document.getElementById('cred-username').value.trim();
+    const password = document.getElementById('cred-password').value;
+    const notes = document.getElementById('cred-notes').value.trim();
+    if (!platform) { document.getElementById('cred-msg').innerHTML = `<div class="msg err">أدخل اسم المنصة</div>`; return; }
+
+    const { error: saveErr } = await sb.rpc('save_credential', {
+      p_id: id, p_platform: platform, p_category: category, p_username: username,
+      p_password: password || null, p_notes: notes
+    });
+    document.getElementById('cred-msg').innerHTML = saveErr ? `<div class="msg err">${saveErr.message}</div>` : `<div class="msg ok">تم الحفظ بأمان. ✓</div>`;
+    if (!saveErr) setTimeout(() => renderAdminCredentials(), 800);
+  });
 }
 
 async function renderAdminReminderTemplates() {
