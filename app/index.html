@@ -1172,15 +1172,21 @@ async function renderStaffTasks() {
 }
 
 async function renderAdminDashboard() {
-  const [{ data: requests }, { data: pendingDrafts }, { data: activeTimers }, { data: completedLogs }, { data: completedRequests }] = await Promise.all([
+  const today = new Date().toISOString().slice(0, 10);
+  const [{ data: requests }, { data: pendingDrafts }, { data: activeTimers }, { data: completedLogs }, { data: completedRequests }, { data: companies }, { data: reminders }] = await Promise.all([
     sb.from('requests').select('*'),
     sb.from('drafts').select('*, requests(title)').eq('status', 'pending_admin_review'),
     sb.from('task_timer_logs').select('*, profiles!task_timer_logs_staff_id_fkey(full_name), requests(title)').is('ended_at', null),
     sb.from('task_timer_logs').select('*, profiles!task_timer_logs_staff_id_fkey(full_name)').not('ended_at', 'is', null),
     sb.from('requests').select('*, profiles!requests_assigned_staff_id_fkey(full_name)').eq('status', 'completed').not('started_at', 'is', null).not('completed_at', 'is', null),
+    sb.from('companies').select('id, is_active'),
+    sb.from('compliance_reminders').select('id, due_date, status').eq('status', 'pending'),
   ]);
 
   const pendingCount = (pendingDrafts || []).length;
+  const activeCompaniesCount = (companies || []).filter(c => c.is_active).length;
+  const overdueReminders = (reminders || []).filter(r => r.due_date < today);
+  const upcomingReminders = (reminders || []).filter(r => r.due_date >= today && r.due_date <= new Date(Date.now() + 7*86400000).toISOString().slice(0,10));
 
   app.innerHTML = `
     ${pendingCount > 0 ? `
@@ -1188,11 +1194,19 @@ async function renderAdminDashboard() {
         <span>⚠️ يوجد ${pendingCount} مسودة بانتظار مراجعتك — آخرها: "${pendingDrafts[0].requests?.title || ''}"</span>
         <button class="btn btn-g btn-sm" id="goToDraftsBtn">راجعها الآن ←</button>
       </div>` : ''}
+    ${overdueReminders.length > 0 ? `
+      <div class="alert-banner" style="background:#fde2e2;border-color:#e5a5a5;">
+        <span>🔴 يوجد ${overdueReminders.length} موعد استحقاق متأخر لشركات مختلفة</span>
+        <button class="btn btn-g btn-sm" id="goToCompaniesBtn">راجع الشركات ←</button>
+      </div>` : ''}
 
     <div class="stats">
       <div class="stat"><div class="n">${(requests||[]).filter(r=>r.status==='new').length}</div><div class="l">طلبات جديدة</div></div>
       <div class="stat ${pendingCount>0?'highlight':''}"><div class="n">${pendingCount}</div><div class="l">مسودات بانتظار مراجعتك</div></div>
       <div class="stat"><div class="n">${(activeTimers||[]).length}</div><div class="l">موظفون يعملون الآن</div></div>
+      <div class="stat"><div class="n">${activeCompaniesCount}</div><div class="l">شركة مفعّلة</div></div>
+      <div class="stat ${overdueReminders.length>0?'highlight':''}"><div class="n">${overdueReminders.length}</div><div class="l">مستحقات متأخرة 🔴</div></div>
+      <div class="stat"><div class="n">${upcomingReminders.length}</div><div class="l">مستحقات خلال 7 أيام</div></div>
     </div>
     <div class="section-title">👁️ من يعمل الآن</div>
     <div class="card" id="liveActivity"></div>
@@ -1201,6 +1215,7 @@ async function renderAdminDashboard() {
   `;
 
   document.getElementById('goToDraftsBtn')?.addEventListener('click', () => navigate('drafts', 'تدقيق المسودات'));
+  document.getElementById('goToCompaniesBtn')?.addEventListener('click', () => navigate('companies', 'الشركات'));
 
   document.getElementById('liveActivity').innerHTML = (activeTimers && activeTimers.length)
     ? activeTimers.map(t => `<div class="req-row" style="padding:.5rem 0"><div><span class="live-pill"><span class="live-dot"></span>${t.profiles?.full_name||''}</span><span class="req-meta" style="display:inline;margin-right:.5rem">يعمل على: ${t.requests?.title||''}</span></div><span class="req-meta">بدأ ${timeAgo(t.started_at)}</span></div>`).join('')
