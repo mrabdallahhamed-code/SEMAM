@@ -79,11 +79,11 @@
   .stat.highlight .n{color:var(--warn-t)}
   .stat.highlight .l{color:var(--warn-t)}
 
-  .card{background:#fff;border:1px solid var(--bd);border-radius:12px;padding:1.2rem;margin-bottom:.9rem}
+  .card{background:#fff;border:1px solid var(--bd);border-radius:14px;padding:1.25rem;margin-bottom:.9rem;box-shadow:0 1px 2px rgba(20,20,20,.03),0 1px 8px rgba(20,20,20,.03);transition:box-shadow .2s,transform .2s}
   .card.urgent{border-right:4px solid #d9534f}
   .req-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.6rem}
-  .req-title{font-size:.9rem;font-weight:700}
-  .req-meta{font-size:.75rem;color:var(--t3);margin-top:.2rem}
+  .req-title{font-size:.92rem;font-weight:700;color:var(--t);line-height:1.4}
+  .req-meta{font-size:.76rem;color:var(--t3);margin-top:.25rem;line-height:1.6}
   .company-chip{display:inline-flex;align-items:center;gap:.3rem;font-size:.7rem;font-weight:700;color:var(--g);background:var(--off);border:1px solid var(--bd);padding:.2rem .6rem;border-radius:100px;margin-top:.3rem}
   .urgent-chip{display:inline-flex;align-items:center;gap:.3rem;font-size:.68rem;font-weight:700;color:#d9534f;background:#fdecec;padding:.2rem .6rem;border-radius:100px}
   .badge{font-size:.72rem;font-weight:700;padding:.3rem .7rem;border-radius:100px;white-space:nowrap}
@@ -99,15 +99,14 @@
   .live-dot{width:7px;height:7px;border-radius:50%;background:var(--ok-t);animation:pulse 1.5s infinite}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 
-  .progress-bar{display:flex;align-items:flex-start;margin:.9rem 0}
-  .progress-step{flex:1;text-align:center;position:relative}
-  .progress-line{position:absolute;top:11px;right:50%;width:100%;height:2px;background:var(--bd);z-index:0}
-  .progress-step:first-child .progress-line{display:none}
-  .progress-step.done .progress-line{background:var(--g)}
-  .dot{width:22px;height:22px;border-radius:50%;background:var(--bd);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700;margin:0 auto .4rem;position:relative;z-index:1}
+  .progress-bar{position:relative;display:flex;justify-content:space-between;margin:1.1rem .1rem .5rem;padding:0 10px;overflow:visible}
+  .progress-track{position:absolute;top:11px;right:10px;left:10px;height:2px;background:var(--bd);z-index:0;border-radius:2px}
+  .progress-track-fill{position:absolute;top:11px;right:10px;height:2px;background:var(--g);z-index:0;border-radius:2px;transition:width .35s ease}
+  .progress-step{flex:1;text-align:center;position:relative;z-index:1;min-width:0}
+  .dot{width:22px;height:22px;border-radius:50%;background:var(--bd);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700;margin:0 auto .45rem;box-shadow:0 0 0 3px #fff;position:relative;z-index:1}
   .progress-step.done .dot{background:var(--g)}
-  .progress-step.current .dot{background:var(--gold);color:var(--t)}
-  .progress-step .lbl{font-size:.62rem;color:var(--t3)}
+  .progress-step.current .dot{background:var(--gold);color:var(--t);box-shadow:0 0 0 3px #fff,0 0 0 5.5px rgba(188,165,105,.22)}
+  .progress-step .lbl{font-size:.6rem;color:var(--t3);line-height:1.35;padding:0 2px;word-break:break-word}
   .progress-step.done .lbl,.progress-step.current .lbl{color:var(--t);font-weight:700}
 
   .btn{display:inline-block;padding:.55rem 1rem;border:none;border-radius:8px;font-family:inherit;font-size:.8rem;font-weight:700;cursor:pointer;text-decoration:none}
@@ -284,12 +283,17 @@ function progressStep(status) {
 }
 function progressBarHtml(status) {
   const cur = progressStep(status);
-  return `<div class="progress-bar">${PROGRESS_LABELS.map((lbl,i) => `
+  const total = PROGRESS_LABELS.length;
+  const fillPct = total > 1 ? (cur / (total - 1)) * 100 : 0;
+  return `<div class="progress-bar">
+    <div class="progress-track"></div>
+    <div class="progress-track-fill" style="width:calc((100% - 20px) * ${fillPct} / 100)"></div>
+    ${PROGRESS_LABELS.map((lbl,i) => `
     <div class="progress-step ${i<cur?'done':''} ${i===cur?'current':''}">
-      <div class="progress-line"></div>
       <div class="dot">${i<cur?'✓':i+1}</div>
       <div class="lbl">${lbl}</div>
-    </div>`).join('')}</div>`;
+    </div>`).join('')}
+  </div>`;
 }
 
 function setupChrome() {
@@ -308,21 +312,37 @@ function setupChrome() {
     const input = document.getElementById('companySearchInput');
     const resultsEl = document.getElementById('companySearchResults');
     let searchTimeout = null;
+    let allCompaniesCache = null;
+
+    function renderCompanyResults(list) {
+      resultsEl.innerHTML = (list && list.length)
+        ? list.map(c => `<div class="notif-item" data-company="${c.id}">🏢 ${c.name}<div class="time">${c.cr_number||''}${c.is_active?'':' · بانتظار التفعيل'}</div></div>`).join('')
+        : `<div class="notif-item">لا توجد نتائج</div>`;
+      resultsEl.classList.add('open');
+      resultsEl.querySelectorAll('[data-company]').forEach(el => el.addEventListener('click', () => {
+        navigate('company:' + el.dataset.company, 'ملف الشركة');
+        resultsEl.classList.remove('open');
+        input.value = '';
+      }));
+    }
+
+    // عند الضغط بدون كتابة: اعرض كل الشركات المسجّلة مباشرة
+    input.addEventListener('focus', async () => {
+      if (input.value.trim()) return;
+      if (!allCompaniesCache) {
+        const { data } = await sb.from('companies').select('*').order('name').limit(200);
+        allCompaniesCache = data || [];
+      }
+      renderCompanyResults(allCompaniesCache);
+    });
+
     input.addEventListener('input', () => {
       clearTimeout(searchTimeout);
       const q = input.value.trim();
-      if (!q) { resultsEl.classList.remove('open'); return; }
+      if (!q) { if (allCompaniesCache) renderCompanyResults(allCompaniesCache); return; }
       searchTimeout = setTimeout(async () => {
-        const { data: companies } = await sb.from('companies').select('*').or(`name.ilike.%${q}%,cr_number.ilike.%${q}%`).limit(10);
-        resultsEl.innerHTML = (companies && companies.length)
-          ? companies.map(c => `<div class="notif-item" data-company="${c.id}">🏢 ${c.name}<div class="time">${c.cr_number||''}</div></div>`).join('')
-          : `<div class="notif-item">لا توجد نتائج</div>`;
-        resultsEl.classList.add('open');
-        resultsEl.querySelectorAll('[data-company]').forEach(el => el.addEventListener('click', () => {
-          navigate('company:' + el.dataset.company, 'ملف الشركة');
-          resultsEl.classList.remove('open');
-          input.value = '';
-        }));
+        const { data: companies } = await sb.from('companies').select('*').or(`name.ilike.%${q}%,cr_number.ilike.%${q}%`).limit(15);
+        renderCompanyResults(companies);
       }, 300);
     });
   }
