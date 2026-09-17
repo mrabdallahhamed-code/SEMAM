@@ -457,6 +457,7 @@ function setupRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'task_timer_logs' }, debounced)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'request_attachments' }, debounced)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'companies' }, debounced)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'compliance_reminders' }, debounced)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, loadNotifications)
     .subscribe();
 }
@@ -1959,6 +1960,8 @@ const AUDIT_ACTION_LABELS = {
   completed: '🏁 اكتمل الطلب',
   company_edited: '🏢 عُدّلت بيانات الشركة',
   company_activated: '🔓 فُعّلت الشركة',
+  credential_saved: '🔐 حُفظت/عُدّلت بيانات دخول',
+  credential_revealed: '👁️ كُشفت كلمة سر',
 };
 
 async function renderAdminAuditLog() {
