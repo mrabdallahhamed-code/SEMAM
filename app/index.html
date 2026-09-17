@@ -303,7 +303,7 @@ function setupChrome() {
     if (searchWrap && !searchWrap.contains(e.target)) document.getElementById('companySearchResults').classList.remove('open');
   });
 
-  if (CURRENT_PROFILE.role === 'admin') {
+  if (CURRENT_PROFILE.role === 'admin' || CURRENT_PROFILE.role === 'staff') {
     document.getElementById('companySearchWrap').style.display = 'block';
     const input = document.getElementById('companySearchInput');
     const resultsEl = document.getElementById('companySearchResults');
@@ -1370,32 +1370,6 @@ async function renderAdminDrafts() {
   }));
 }
 
-async function seedComplianceReminders(companyId) {
-  const { data: existing } = await sb.from('compliance_reminders').select('id').eq('company_id', companyId).limit(1);
-  if (existing && existing.length) return; // لا تكرر لو أُضيفت من قبل
-
-  const { data: templates } = await sb.from('reminder_templates').select('*').eq('is_active', true);
-  if (!templates || !templates.length) return;
-
-  const today = new Date();
-  const rows = templates.map(t => {
-    const due = new Date(today);
-    if (t.default_recurrence === 'monthly') due.setMonth(due.getMonth() + 1);
-    else if (t.default_recurrence === 'quarterly') due.setMonth(due.getMonth() + 3);
-    else due.setFullYear(due.getFullYear() + 1);
-    return {
-      company_id: companyId,
-      template_id: t.id,
-      title: t.title,
-      description: t.description,
-      due_date: due.toISOString().slice(0, 10),
-      reminder_days_before: t.default_reminder_days_before,
-      recurrence: t.default_recurrence,
-    };
-  });
-  await sb.from('compliance_reminders').insert(rows);
-}
-
 const CRED_CATEGORIES = { government: 'منصة حكومية', social_media: 'حساب سوشيال ميديا', other: 'أخرى' };
 
 async function renderAdminCredentials() {
@@ -1472,6 +1446,12 @@ async function renderAdminCredentials() {
     const password = document.getElementById('cred-password').value;
     const notes = document.getElementById('cred-notes').value.trim();
     if (!platform) { document.getElementById('cred-msg').innerHTML = `<div class="msg err">أدخل اسم المنصة</div>`; return; }
+
+    if (!id) {
+      const { data: dup } = await sb.rpc('list_credentials');
+      const exists = (dup || []).some(c => c.platform_name.trim() === platform);
+      if (exists && !confirm(`فيه بالفعل بيانات محفوظة باسم "${platform}" — تبي تضيف وحدة ثانية بنفس الاسم؟`)) return;
+    }
 
     const { error: saveErr } = await sb.rpc('save_credential', {
       p_id: id, p_platform: platform, p_category: category, p_username: username,
