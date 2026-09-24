@@ -639,7 +639,15 @@ async function renderClientDashboard() {
   const counts = { pending_client_approval: 0, in_progress: 0, completed: 0 };
   (requests || []).forEach(r => { if (counts[r.status] !== undefined) counts[r.status]++; });
 
+  let lateInvoicesCount = 0;
+  if (CURRENT_PROFILE.company_id) {
+    const today = new Date().toISOString().slice(0, 10);
+    const { data: payments } = await sb.from('service_payments').select('due_date, client_confirmed, admin_confirmed').eq('company_id', CURRENT_PROFILE.company_id);
+    lateInvoicesCount = (payments || []).filter(p => p.due_date && p.due_date < today && !(p.client_confirmed && p.admin_confirmed)).length;
+  }
+
   app.innerHTML = `
+    ${lateInvoicesCount > 0 ? `<div class="alert-banner" style="background:#fde2e2;border-color:#e5a5a5;cursor:pointer;" onclick="navigate('my-payments','فواتيري')">🔴 عندك ${lateInvoicesCount} ${lateInvoicesCount === 1 ? 'فاتورة متأخرة' : 'فواتير متأخرة'} — اضغط هنا للمراجعة</div>` : ''}
     ${CURRENT_COMPANY ? `
       <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.6rem">
         <div><div class="req-title">🏢 ${CURRENT_COMPANY.name}</div><div class="req-meta">السجل التجاري: ${CURRENT_COMPANY.cr_number || '—'} · ${CURRENT_COMPANY.entity_type || ''}</div></div>
@@ -713,26 +721,59 @@ async function renderClientPayments() {
   if (!companyId) { app.innerHTML = emptyState('💰', 'ما عندك منشأة مرتبطة بعد', ''); return; }
 
   const { data: payments, error } = await sb.from('service_payments').select('*').eq('company_id', companyId).order('created_at', { ascending: false });
-  app.innerHTML = `<div class="section-title">💰 فواتيري ودفعاتي</div><div id="clientPayList"></div>`;
+  const today = new Date().toISOString().slice(0, 10);
+  const lateCount = (payments || []).filter(p => p.due_date && p.due_date < today && !(p.client_confirmed && p.admin_confirmed)).length;
+
+  app.innerHTML = `
+    ${lateCount > 0 ? `<div class="alert-banner" style="background:#fde2e2;border-color:#e5a5a5;">🔴 عندك ${lateCount} ${lateCount === 1 ? 'فاتورة متأخرة' : 'فواتير متأخرة'} عن موعد الاستحقاق</div>` : ''}
+    <div class="section-title">💰 فواتيري ودفعاتي</div><div id="clientPayList"></div>`;
   const el = document.getElementById('clientPayList');
 
   if (error) { el.innerHTML = `<div class="card"><div class="msg err">${error.message}</div></div>`; return; }
   if (!payments || !payments.length) { el.innerHTML = emptyState('💰', 'لا توجد دفعات مسجّلة حالياً', ''); return; }
 
-  el.innerHTML = payments.map(p => `
-    <div class="card">
+  el.innerHTML = payments.map(p => {
+    const fullyDone = p.client_confirmed && p.admin_confirmed;
+    const isLate = p.due_date && p.due_date < today && !fullyDone;
+    return `
+    <div class="card" style="${isLate ? 'background:#FCECEA;border-color:#e5a5a5;' : ''}">
       <div class="req-row">
-        <div><div class="req-title">${p.label}</div><div class="req-meta">${p.amount ? Number(p.amount).toLocaleString('ar-SA') + ' ر.س' : ''} · ${fmtDate(p.created_at)}</div></div>
+        <div><div class="req-title">${p.label}</div><div class="req-meta">${p.amount ? Number(p.amount).toLocaleString('ar-SA') + ' ر.س' : ''}${p.due_date ? ' · الاستحقاق: ' + fmtDate(p.due_date) : ''}</div></div>
         ${p.admin_confirmed ? `<span class="badge b-active">✓ مؤكّدة</span>` : p.client_confirmed ? `<span class="badge b-pending">⏳ بانتظار المراجعة</span>` : `<span class="badge b-pending">⚠️ بانتظار تأكيدك</span>`}
       </div>
-      ${!p.client_confirmed ? `<button class="btn btn-g btn-sm" data-client-confirm="${p.id}" style="margin-top:.5rem;">✅ أكّد إنك سدّدت هذي الدفعة</button>` : ''}
+      ${isLate ? `<div style="font-size:.8rem;color:#a11;font-weight:700;margin-top:.3rem;">⚠ متأخرة عن موعد الاستحقاق</div>` : ''}
+      ${!p.client_confirmed ? `
+        <div style="margin-top:.6rem;">
+          <label style="font-size:.8rem;">ارفع صورة إيصال التحويل</label>
+          <input type="file" accept="image/*,application/pdf" id="receipt-input-${p.id}" style="margin-bottom:.5rem;">
+          <button class="btn btn-g btn-sm" data-confirm-pay="${p.id}">✅ أكّدت السداد ورفعت الإيصال</button>
+          <div id="pay-msg-${p.id}"></div>
+        </div>` : (p.receipt_file_path ? `<a href="#" data-view-receipt="${p.id}" data-path="${p.receipt_file_path}" style="font-size:.8rem;display:block;margin-top:.5rem;">📎 شوف الإيصال اللي رفعته</a>` : '')}
     </div>
-  `).join('');
+  `; }).join('');
 
-  el.querySelectorAll('[data-client-confirm]').forEach(btn => btn.addEventListener('click', async () => {
-    if (!confirm('تأكّد إنك فعلاً سدّدت هذا المبلغ قبل التأكيد.')) return;
-    const id = btn.dataset.clientConfirm;
-    await sb.from('service_payments').update({ client_confirmed: true, client_confirmed_at: new Date().toISOString() }).eq('id', id);
+  el.querySelectorAll('[data-view-receipt]').forEach(a => a.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const { data } = await sb.storage.from('client-uploads').createSignedUrl(a.dataset.path, 3600);
+    if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+  }));
+
+  el.querySelectorAll('[data-confirm-pay]').forEach(btn => btn.addEventListener('click', async () => {
+    const id = btn.dataset.confirmPay;
+    const fileInput = document.getElementById(`receipt-input-${id}`);
+    const msgEl = document.getElementById(`pay-msg-${id}`);
+    if (!fileInput.files.length) { msgEl.innerHTML = `<div class="msg err">لازم ترفع صورة الإيصال قبل التأكيد</div>`; return; }
+
+    const file = fileInput.files[0];
+    const path = `${CURRENT_USER.id}/receipts/${id}_${Date.now()}_${file.name}`;
+    const { error: upErr } = await sb.storage.from('client-uploads').upload(path, file);
+    if (upErr) { msgEl.innerHTML = `<div class="msg err">${upErr.message}</div>`; return; }
+
+    const { error } = await sb.from('service_payments').update({
+      client_confirmed: true, client_confirmed_at: new Date().toISOString(), receipt_file_path: path
+    }).eq('id', id);
+    if (error) { msgEl.innerHTML = `<div class="msg err">${error.message}</div>`; return; }
+
     renderClientPayments();
   }));
 }
@@ -1719,6 +1760,13 @@ async function renderAdminCompanyDetail(companyId) {
       <div style="display:grid;gap:.6rem">
         <div><label>وصف الخدمة/الدفعة</label><input id="new-pay-label" placeholder="مثال: محاسبة شهر سبتمبر"></div>
         <div><label>المبلغ (ر.س)</label><input id="new-pay-amount" type="number"></div>
+        <div><label>نوع الدفعة</label>
+          <select id="new-pay-type">
+            <option value="advance">دفعة مقدّمة (مرة واحدة)</option>
+            <option value="monthly">فاتورة شهرية متكررة</option>
+          </select>
+        </div>
+        <div id="new-pay-due-wrap" style="display:none;"><label>تاريخ الاستحقاق</label><input id="new-pay-due" type="date"></div>
         <button class="btn btn-g btn-sm" id="addPaymentBtn">إضافة دفعة ←</button>
       </div>
       <div id="new-pay-msg"></div>
@@ -1735,6 +1783,11 @@ async function renderAdminCompanyDetail(companyId) {
         <div><label>تاريخ الاستحقاق</label><input id="new-rem-date" type="date"></div>
         <div><label>التذكير قبل الاستحقاق بكم يوم؟</label><input id="new-rem-days" type="number" value="14"></div>
         <div><label>التكرار</label><select id="new-rem-recur"><option value="none">مرة واحدة فقط</option><option value="monthly">شهرياً</option><option value="quarterly">ربع سنوي (كل 3 شهور)</option><option value="yearly" selected>سنوياً</option></select></div>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:normal;">
+          <input type="checkbox" id="new-rem-invoice" style="width:auto;">
+          <span>هذا تذكير مالي — أنشئ فاتورة تلقائياً بنظام الفوترة</span>
+        </label>
+        <div id="new-rem-amount-wrap" style="display:none;"><label>مبلغ الفاتورة (ر.س)</label><input id="new-rem-amount" type="number"></div>
         <button class="btn btn-g btn-sm" id="addReminderBtn">إضافة تذكير ←</button>
       </div>
       <div id="new-rem-msg"></div>
@@ -1746,17 +1799,46 @@ async function renderAdminCompanyDetail(companyId) {
   loadReminders(companyId);
   loadPayments(companyId);
   document.getElementById("addPaymentBtn").addEventListener("click", () => addPayment(companyId));
+  document.getElementById('new-pay-type').addEventListener('change', (e) => {
+    document.getElementById('new-pay-due-wrap').style.display = e.target.value === 'monthly' ? 'block' : 'none';
+  });
   loadReminderSuggestions();
+
+  document.getElementById('new-rem-invoice').addEventListener('change', (e) => {
+    document.getElementById('new-rem-amount-wrap').style.display = e.target.checked ? 'block' : 'none';
+  });
 
   document.getElementById('addReminderBtn').addEventListener('click', async () => {
     const title = document.getElementById('new-rem-title').value.trim();
     const due = document.getElementById('new-rem-date').value;
     const days = parseInt(document.getElementById('new-rem-days').value) || 14;
     const recur = document.getElementById('new-rem-recur').value;
+    const createsInvoice = document.getElementById('new-rem-invoice').checked;
+    const invoiceAmount = parseFloat(document.getElementById('new-rem-amount').value) || null;
     if (!title || !due) { document.getElementById('new-rem-msg').innerHTML = `<div class="msg err">أدخل العنوان والتاريخ</div>`; return; }
-    const { error } = await sb.from('compliance_reminders').insert({ company_id: companyId, title, due_date: due, reminder_days_before: days, recurrence: recur, created_by: CURRENT_USER.id });
-    document.getElementById('new-rem-msg').innerHTML = error ? `<div class="msg err">${error.message}</div>` : `<div class="msg ok">تمت الإضافة.</div>`;
-    if (!error) { document.getElementById('new-rem-title').value = ''; document.getElementById('new-rem-date').value = ''; loadReminders(companyId); }
+
+    const { data: newReminder, error } = await sb.from('compliance_reminders').insert({
+      company_id: companyId, title, due_date: due, reminder_days_before: days, recurrence: recur,
+      created_by: CURRENT_USER.id, creates_invoice: createsInvoice, invoice_amount: invoiceAmount
+    }).select().single();
+
+    if (!error && createsInvoice && newReminder) {
+      await sb.from('service_payments').insert({
+        company_id: companyId, label: title, amount: invoiceAmount,
+        payment_type: recur === 'monthly' ? 'monthly' : 'advance',
+        due_date: due, source_reminder_id: newReminder.id, created_by: CURRENT_USER.id
+      });
+    }
+
+    document.getElementById('new-rem-msg').innerHTML = error ? `<div class="msg err">${error.message}</div>` : `<div class="msg ok">تمت الإضافة${createsInvoice ? ' — وأُنشئت الفاتورة تلقائياً بنظام الفوترة.' : ''}</div>`;
+    if (!error) {
+      document.getElementById('new-rem-title').value = '';
+      document.getElementById('new-rem-date').value = '';
+      document.getElementById('new-rem-invoice').checked = false;
+      document.getElementById('new-rem-amount-wrap').style.display = 'none';
+      loadReminders(companyId);
+      loadPayments(companyId);
+    }
   });
 
   const el = document.getElementById('companyReqList');
@@ -1800,21 +1882,36 @@ async function loadPayments(companyId) {
   if (error) { el.innerHTML = `<div class="card"><div class="msg err">${error.message}</div></div>`; return; }
   if (!payments || !payments.length) { el.innerHTML = `<div class="card"><div class="req-meta">لا توجد دفعات مسجّلة بعد.</div></div>`; return; }
 
-  el.innerHTML = payments.map(p => `
-    <div class="card">
+  const today = new Date().toISOString().slice(0, 10);
+  el.innerHTML = payments.map(p => {
+    const fullyDone = p.client_confirmed && p.admin_confirmed;
+    const isLate = p.due_date && p.due_date < today && !fullyDone;
+    return `
+    <div class="card" style="${isLate ? 'background:#FCECEA;border-color:#e5a5a5;' : ''}">
       <div class="req-row">
-        <div><div class="req-title">${p.label}</div><div class="req-meta">${p.amount ? Number(p.amount).toLocaleString('ar-SA') + ' ر.س' : ''} · ${fmtDate(p.created_at)}</div></div>
+        <div><div class="req-title">${p.label} ${p.payment_type === 'monthly' ? '<span class="badge" style="background:#eef;color:#33a;">🔁 شهرية</span>' : ''}</div>
+          <div class="req-meta">${p.amount ? Number(p.amount).toLocaleString('ar-SA') + ' ر.س' : ''} · أُنشئت ${fmtDate(p.created_at)}${p.due_date ? ' · الاستحقاق: ' + fmtDate(p.due_date) : ''}</div>
+        </div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:.5rem;">
+        ${isLate ? `<span class="badge" style="background:#e5a5a5;color:#7a1f1f;">⚠ متأخرة عن الاستحقاق</span>` : ''}
         <span class="badge ${p.client_confirmed ? 'b-active' : 'b-pending'}">${p.client_confirmed ? '✓ العميل أكّد الدفع' : '⏳ بانتظار تأكيد العميل'}</span>
         <span class="badge ${p.admin_confirmed ? 'b-active' : 'b-pending'}">${p.admin_confirmed ? '✓ تمت المراجعة' : '⚠ بانتظار مراجعتك'}</span>
       </div>
-      ${p.client_confirmed && !p.admin_confirmed ? `<button class="btn btn-g btn-sm" data-confirm-pay="${p.id}" style="margin-top:.5rem;">✅ تأكيد استلام هذي الدفعة</button>` : ''}
+      ${p.receipt_file_path ? `<div style="margin-top:.5rem;" id="receipt-${p.id}"><a href="#" data-view-receipt="${p.id}" data-path="${p.receipt_file_path}" style="font-size:.82rem;">📎 عرض صورة التحويل المرفوعة</a></div>` : ''}
+      ${p.client_confirmed && p.receipt_file_path && !p.admin_confirmed ? `<button class="btn btn-g btn-sm" data-confirm-pay="${p.id}" style="margin-top:.5rem;">✅ تأكيد وصول التحويل واكتمال السداد</button>` : ''}
+      ${p.client_confirmed && !p.receipt_file_path ? `<div style="font-size:.78rem;color:#a11;margin-top:.4rem;">العميل أكّد بدون رفع صورة تحويل — راجعه قبل التأكيد.</div>` : ''}
     </div>
-  `).join('');
+  `; }).join('');
+
+  el.querySelectorAll('[data-view-receipt]').forEach(a => a.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const { data } = await sb.storage.from('client-uploads').createSignedUrl(a.dataset.path, 3600);
+    if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+  }));
 
   el.querySelectorAll('[data-confirm-pay]').forEach(btn => btn.addEventListener('click', async () => {
-    if (!confirm('تأكّد إنك فعلاً استلمت/تحققت من هذي الدفعة؟')) return;
+    if (!confirm('تأكّد إنك راجعت صورة التحويل وفعلاً وصلك المبلغ؟')) return;
     const id = btn.dataset.confirmPay;
     await sb.from('service_payments').update({ admin_confirmed: true, admin_confirmed_at: new Date().toISOString() }).eq('id', id);
     await sb.from('audit_log').insert({ entity_type: 'service_payments', entity_id: id, action: 'payment_verified', actor_id: CURRENT_USER.id, actor_role: CURRENT_PROFILE.role, details: {} });
@@ -1825,14 +1922,18 @@ async function loadPayments(companyId) {
 async function addPayment(companyId) {
   const label = document.getElementById('new-pay-label').value.trim();
   const amount = parseFloat(document.getElementById('new-pay-amount').value) || null;
+  const payment_type = document.getElementById('new-pay-type').value;
+  const due_date = document.getElementById('new-pay-due').value || null;
   const msg = document.getElementById('new-pay-msg');
   if (!label) { msg.innerHTML = `<div class="msg err">أدخل وصف الدفعة</div>`; return; }
+  if (payment_type === 'monthly' && !due_date) { msg.innerHTML = `<div class="msg err">حدد تاريخ الاستحقاق للفاتورة الشهرية</div>`; return; }
 
-  const { error } = await sb.from('service_payments').insert({ company_id: companyId, label, amount, created_by: CURRENT_USER.id });
+  const { error } = await sb.from('service_payments').insert({ company_id: companyId, label, amount, payment_type, due_date, created_by: CURRENT_USER.id });
   msg.innerHTML = error ? `<div class="msg err">${error.message}</div>` : `<div class="msg ok">تمت الإضافة.</div>`;
   if (!error) {
     document.getElementById('new-pay-label').value = '';
     document.getElementById('new-pay-amount').value = '';
+    document.getElementById('new-pay-due').value = '';
     loadPayments(companyId);
   }
 }
