@@ -73,6 +73,15 @@
 
     <!-- SIGN UP -->
     <form id="signupForm" class="hidden">
+      <div class="fieldset-title">نوع الحساب</div>
+      <div class="fg">
+        <select id="su-account-type">
+          <option value="owner">مالك شركة جديدة</option>
+          <option value="company_employee">موظف بشركة قائمة (لدي كود شركة)</option>
+          <option value="itqan_staff">موظف إتقان (داخلي أو متعاقد)</option>
+        </select>
+      </div>
+
       <div class="fieldset-title">بياناتك</div>
       <div class="fg">
         <label for="su-name">الاسم الكامل</label>
@@ -87,28 +96,64 @@
         <input id="su-pass" type="password" required minlength="6" autocomplete="new-password">
       </div>
 
-      <div class="fieldset-title">بيانات المنشأة</div>
-      <div class="fg">
-        <label for="su-company">اسم المنشأة</label>
-        <input id="su-company" type="text" required placeholder="مثال: شركة ركاز نجد">
+      <div id="su-owner-fields">
+        <div class="fieldset-title">بيانات المنشأة</div>
+        <div class="fg">
+          <label for="su-company">اسم المنشأة</label>
+          <input id="su-company" type="text" placeholder="مثال: شركة ركاز نجد">
+        </div>
+        <div class="fg">
+          <label for="su-cr">رقم السجل التجاري الموحد</label>
+          <input id="su-cr" type="text" placeholder="٧٠٠٠xxxxxx">
+        </div>
+        <div class="fg">
+          <label for="su-entity">الكيان القانوني</label>
+          <select id="su-entity">
+            <option value="">اختر...</option>
+            <option>مؤسسة فردية</option>
+            <option>شركة ذات مسؤولية محدودة</option>
+            <option>شركة الشخص الواحد</option>
+            <option>شركة مساهمة مبسطة</option>
+            <option>شركة تضامن</option>
+            <option>فرع شركة أجنبية</option>
+            <option>أخرى</option>
+          </select>
+        </div>
       </div>
-      <div class="fg">
-        <label for="su-cr">رقم السجل التجاري الموحد</label>
-        <input id="su-cr" type="text" required placeholder="٧٠٠٠xxxxxx">
+
+      <div id="su-employee-fields" class="hidden">
+        <div class="fieldset-title">بيانات الشركة والدور</div>
+        <div class="fg">
+          <label for="su-join-code">كود الشركة (احصل عليه من مالك الشركة)</label>
+          <input id="su-join-code" type="text" placeholder="مثال: ITQ-7X2K9" style="text-transform:uppercase;">
+        </div>
+        <div class="fg">
+          <label for="su-employee-dept">قسمك/دورك بالشركة</label>
+          <select id="su-employee-dept">
+            <option value="">اختر...</option>
+            <option>الاستشارات وتطوير الأعمال</option>
+            <option>التسويق ونمو الأعمال</option>
+            <option>المحاسبة والمالية</option>
+            <option>الموارد البشرية</option>
+          </select>
+        </div>
       </div>
-      <div class="fg">
-        <label for="su-entity">الكيان القانوني</label>
-        <select id="su-entity" required>
-          <option value="">اختر...</option>
-          <option>مؤسسة فردية</option>
-          <option>شركة ذات مسؤولية محدودة</option>
-          <option>شركة الشخص الواحد</option>
-          <option>شركة مساهمة مبسطة</option>
-          <option>شركة تضامن</option>
-          <option>فرع شركة أجنبية</option>
-          <option>أخرى</option>
-        </select>
+
+      <div id="su-staff-fields" class="hidden">
+        <div class="fieldset-title">دورك الوظيفي</div>
+        <div class="fg">
+          <label for="su-staff-dept">تخصصك</label>
+          <select id="su-staff-dept">
+            <option value="">اختر...</option>
+            <option>الاستشارات وتطوير الأعمال</option>
+            <option>التسويق ونمو الأعمال</option>
+            <option>المحاسبة والمالية</option>
+            <option>الموارد البشرية</option>
+          </select>
+        </div>
       </div>
+
+      <p style="font-size:.8rem;color:#888;margin:.5rem 0 1rem;">⚠️ بعد التسجيل، حسابك بانتظار اعتماد إدارة إتقان قبل ما يصير فعّالاً بالكامل.</p>
 
       <button type="submit" class="submit" id="su-btn">إنشاء الحساب ←</button>
     </form>
@@ -158,20 +203,30 @@
   // ---- Sign up: creates the auth user, then stashes company info so
   // app.html can finish creating the company row on first successful login
   // (works whether or not email confirmation is required). ----
+  document.getElementById('su-account-type').addEventListener('change', (e) => {
+    const type = e.target.value;
+    document.getElementById('su-owner-fields').classList.toggle('hidden', type !== 'owner');
+    document.getElementById('su-employee-fields').classList.toggle('hidden', type !== 'company_employee');
+    document.getElementById('su-staff-fields').classList.toggle('hidden', type !== 'itqan_staff');
+  });
+
   signupForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = document.getElementById('su-btn');
     btn.disabled = true; btn.textContent = 'جاري الإنشاء...';
     hideMsg();
 
+    const accountType = document.getElementById('su-account-type').value;
     const full_name = document.getElementById('su-name').value.trim();
     const email = document.getElementById('su-email').value.trim();
     const password = document.getElementById('su-pass').value;
-    const companyInfo = {
-      name: document.getElementById('su-company').value.trim(),
-      cr_number: document.getElementById('su-cr').value.trim(),
-      entity_type: document.getElementById('su-entity').value,
-    };
+
+    if (accountType === 'company_employee' && !document.getElementById('su-join-code').value.trim()) {
+      showMsg('أدخل كود الشركة', 'err'); btn.disabled = false; btn.textContent = 'إنشاء الحساب ←'; return;
+    }
+    if (accountType === 'itqan_staff' && !document.getElementById('su-staff-dept').value) {
+      showMsg('اختر تخصصك', 'err'); btn.disabled = false; btn.textContent = 'إنشاء الحساب ←'; return;
+    }
 
     const { data, error } = await sb.auth.signUp({ email, password, options: { data: { full_name } } });
     btn.disabled = false; btn.textContent = 'إنشاء الحساب ←';
@@ -181,10 +236,26 @@
       return;
     }
 
-    // Stash pending company info in localStorage keyed by user id, so
-    // app.html can pick it up on first load regardless of email-confirm timing.
     if (data.user) {
-      localStorage.setItem('samam_pending_company_' + data.user.id, JSON.stringify(companyInfo));
+      if (accountType === 'owner') {
+        const companyInfo = {
+          name: document.getElementById('su-company').value.trim(),
+          cr_number: document.getElementById('su-cr').value.trim(),
+          entity_type: document.getElementById('su-entity').value,
+        };
+        localStorage.setItem('samam_pending_company_' + data.user.id, JSON.stringify(companyInfo));
+      } else if (accountType === 'company_employee') {
+        localStorage.setItem('samam_pending_role_' + data.user.id, JSON.stringify({
+          role: 'company_employee',
+          department: document.getElementById('su-employee-dept').value,
+          join_code: document.getElementById('su-join-code').value.trim().toUpperCase(),
+        }));
+      } else if (accountType === 'itqan_staff') {
+        localStorage.setItem('samam_pending_role_' + data.user.id, JSON.stringify({
+          role: 'itqan_staff',
+          department: document.getElementById('su-staff-dept').value,
+        }));
+      }
     }
 
     if (data.user && !data.session) {

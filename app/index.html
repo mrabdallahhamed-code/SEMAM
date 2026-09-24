@@ -219,6 +219,28 @@ async function init() {
 
   await ensureCompanyLinked();
 
+  if (CURRENT_PROFILE.approval_status === 'pending') {
+    document.getElementById('sbNav').innerHTML = '';
+    app.innerHTML = `<div class="card" style="max-width:480px;margin:3rem auto;text-align:center;">
+      <div style="font-size:2rem;margin-bottom:.5rem;">⏳</div>
+      <h2 style="margin-bottom:.6rem;">حسابك بانتظار الاعتماد</h2>
+      <p style="color:#888;font-size:.88rem;">إدارة إتقان بتراجع طلبك وتفعّل حسابك قريباً. بترجع تقدر تسجّل دخول عادي بعد التفعيل.</p>
+      <button class="submit" style="margin-top:1.2rem;max-width:200px;" onclick="sb.auth.signOut().then(()=>location.reload())">تسجيل الخروج</button>
+    </div>`;
+    document.getElementById('whoami').textContent = `${CURRENT_PROFILE.full_name} · بانتظار الاعتماد`;
+    return;
+  }
+  if (CURRENT_PROFILE.approval_status === 'rejected') {
+    document.getElementById('sbNav').innerHTML = '';
+    app.innerHTML = `<div class="card" style="max-width:480px;margin:3rem auto;text-align:center;">
+      <div style="font-size:2rem;margin-bottom:.5rem;">🚫</div>
+      <h2 style="margin-bottom:.6rem;">تعذّر اعتماد طلبك</h2>
+      <p style="color:#888;font-size:.88rem;">تواصل مع إدارة إتقان لمعرفة السبب أو تسوية الأمر.</p>
+      <button class="submit" style="margin-top:1.2rem;max-width:200px;" onclick="sb.auth.signOut().then(()=>location.reload())">تسجيل الخروج</button>
+    </div>`;
+    return;
+  }
+
   const { data: services } = await sb.from('services').select('*').eq('is_active', true);
   ALL_SERVICES = services || [];
 
@@ -230,20 +252,47 @@ async function init() {
 }
 
 async function ensureCompanyLinked() {
-  if (CURRENT_PROFILE.role !== 'client' || CURRENT_PROFILE.company_id) return;
-  const key = 'samam_pending_company_' + CURRENT_USER.id;
-  const raw = localStorage.getItem(key);
-  if (!raw) return;
-  try {
-    const info = JSON.parse(raw);
-    const newId = crypto.randomUUID();
-    const { error } = await sb.from('companies').insert({ id: newId, ...info });
-    if (!error) {
-      await sb.from('profiles').update({ company_id: newId }).eq('id', CURRENT_USER.id);
-      CURRENT_PROFILE.company_id = newId;
-      localStorage.removeItem(key);
+  if (CURRENT_PROFILE.company_id || CURRENT_PROFILE.approval_status === 'pending') {
+    // already linked or already has a pending role request being processed
+  }
+
+  // مالك شركة جديدة
+  if (CURRENT_PROFILE.role === 'client' && !CURRENT_PROFILE.company_id) {
+    const key = 'samam_pending_company_' + CURRENT_USER.id;
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      try {
+        const info = JSON.parse(raw);
+        const newId = crypto.randomUUID();
+        const { error } = await sb.from('companies').insert({ id: newId, ...info });
+        if (!error) {
+          await sb.from('profiles').update({ company_id: newId, client_type: 'owner' }).eq('id', CURRENT_USER.id);
+          CURRENT_PROFILE.company_id = newId;
+          CURRENT_PROFILE.client_type = 'owner';
+          localStorage.removeItem(key);
+        }
+      } catch (e) {}
     }
-  } catch (e) {}
+  }
+
+  // موظف شركة / موظف إتقان — عبر دالة آمنة (RPC)
+  const roleKey = 'samam_pending_role_' + CURRENT_USER.id;
+  const rawRole = localStorage.getItem(roleKey);
+  if (rawRole) {
+    try {
+      const info = JSON.parse(rawRole);
+      const { data, error } = await sb.rpc('register_role_request', {
+        p_role: info.role, p_department: info.department, p_join_code: info.join_code || null
+      });
+      if (!error && data && !data.error) {
+        localStorage.removeItem(roleKey);
+        const { data: freshProfile } = await sb.from('profiles').select('*').eq('id', CURRENT_USER.id).single();
+        if (freshProfile) CURRENT_PROFILE = freshProfile;
+      } else if (data && data.error) {
+        alert(data.error);
+      }
+    } catch (e) {}
+  }
 }
 
 function roleLabel(r) { return { client: 'عميل', staff: 'فريق العمل', admin: 'إدارة' }[r] || r; }
@@ -364,6 +413,7 @@ function renderSidebar() {
     html += `<div class="sb-item" data-view="my-requests">📋 طلباتي</div>`;
     html += `<div class="sb-item" data-view="my-reminders">📅 مواعيدي</div>`;
     html += `<div class="sb-item" data-view="my-payments">💰 فواتيري</div>`;
+    if (CURRENT_PROFILE.client_type === 'owner') html += `<div class="sb-item" data-view="my-team">👥 فريقي</div>`;
     html += `<div class="sb-sect">خدماتنا</div>`;
     ALL_SERVICES.forEach(s => { html += `<div class="sb-item" data-view="service:${s.id}">${s.name_ar}</div>`; });
     html += `<div class="sb-sect">حسابي</div>`;
@@ -378,6 +428,7 @@ function renderSidebar() {
     html += `<div class="sb-item" data-view="drafts">تدقيق المسودات</div>`;
     html += `<div class="sb-item" data-view="companies">الشركات</div>`;
     html += `<div class="sb-item" data-view="reminder-templates">📅 قوالب التذكيرات</div>`;
+    html += `<div class="sb-item" data-view="approvals">✅ طلبات الاعتماد</div>`;
     html += `<div class="sb-item" data-view="credentials">🔐 كلمات السر</div>`;
     html += `<div class="sb-item" data-view="team">الفريق</div>`;
     html += `<div class="sb-item" data-view="audit">سجل التدقيق</div>`;
@@ -431,6 +482,7 @@ function renderContent() {
     else if (currentView === 'my-requests') renderClientAllRequests();
     else if (currentView === 'my-reminders') renderClientReminders();
     else if (currentView === 'my-payments') renderClientPayments();
+    else if (currentView === 'my-team') renderClientTeam();
     else if (currentView.startsWith('service:')) renderClientServicePage(currentView.split(':')[1]);
     else if (currentView === 'profile') renderClientProfile();
     else if (currentView === 'documents') renderClientDocuments();
@@ -449,10 +501,26 @@ function renderContent() {
     else if (currentView === 'audit') renderAdminAuditLog();
     else if (currentView === 'reminder-templates') renderAdminReminderTemplates();
     else if (currentView === 'credentials') renderAdminCredentials();
+    else if (currentView === 'approvals') renderAdminApprovals();
     else if (currentView.startsWith('company:')) renderAdminCompanyDetail(currentView.split(':')[1]);
   }
 }
 function rerenderCurrentRole() { if (CURRENT_PROFILE) renderContent(); }
+
+// يبني استعلام الطلبات بالنطاق الصحيح حسب نوع العميل:
+// مالك الشركة = يشوف كل طلبات الشركة. موظف = يشوف طلبات قسمه + طلباته الشخصية.
+async function applyRequestScope(baseQuery) {
+  const companyId = CURRENT_PROFILE.company_id;
+  if (!companyId) return baseQuery.eq('client_id', CURRENT_USER.id);
+  if (CURRENT_PROFILE.client_type === 'owner' || !CURRENT_PROFILE.department) {
+    return baseQuery.eq('company_id', companyId);
+  }
+  // موظف: نحدد أولاً خدمات قسمه، وبعدين نفلتر (نفس القسم) أو (طلبه الشخصي)
+  const { data: deptServices } = await sb.from('services').select('id').eq('name_ar', CURRENT_PROFILE.department);
+  const serviceIds = (deptServices || []).map(s => s.id);
+  const serviceFilter = serviceIds.length ? `service_id.in.(${serviceIds.join(',')})` : 'service_id.eq.00000000-0000-0000-0000-000000000000';
+  return baseQuery.eq('company_id', companyId).or(`${serviceFilter},client_id.eq.${CURRENT_USER.id}`);
+}
 
 async function loadNotifications() {
   const { data: notifs } = await sb.from('notifications').select('*').eq('recipient_id', CURRENT_USER.id).order('created_at', { ascending: false }).limit(20);
@@ -635,7 +703,7 @@ async function renderClientDashboard() {
     const { data: company } = await sb.from('companies').select('*').eq('id', CURRENT_PROFILE.company_id).single();
     CURRENT_COMPANY = company;
   }
-  const { data: requests } = await sb.from('requests').select('*, services(name_ar)').eq('client_id', CURRENT_USER.id).order('created_at', { ascending: false });
+  const { data: requests } = await applyRequestScope(sb.from('requests').select('*, services(name_ar)').order('created_at', { ascending: false }));
   const counts = { pending_client_approval: 0, in_progress: 0, completed: 0 };
   (requests || []).forEach(r => { if (counts[r.status] !== undefined) counts[r.status]++; });
 
@@ -676,7 +744,7 @@ async function renderClientDashboard() {
 }
 
 async function renderClientAllRequests() {
-  const { data: requests } = await sb.from('requests').select('*, services(name_ar)').eq('client_id', CURRENT_USER.id).order('created_at', { ascending: false });
+  const { data: requests } = await applyRequestScope(sb.from('requests').select('*, services(name_ar)').order('created_at', { ascending: false }));
 
   app.innerHTML = `
     <div class="section-title">طلباتي (${requests?.length || 0})</div>
@@ -714,6 +782,36 @@ async function renderClientReminders() {
     `;
     el.appendChild(card);
   });
+}
+
+async function renderClientTeam() {
+  const companyId = CURRENT_PROFILE.company_id;
+  if (!companyId) { app.innerHTML = emptyState('👥', 'ما عندك منشأة مرتبطة بعد', ''); return; }
+
+  const { data: company } = await sb.from('companies').select('join_code, name').eq('id', companyId).single();
+  const { data: team } = await sb.from('profiles').select('*').eq('company_id', companyId).order('created_at');
+
+  app.innerHTML = `
+    <div class="section-title">👥 فريقي</div>
+    <div class="card">
+      <div class="req-title" style="margin-bottom:.4rem;">كود انضمام شركتك</div>
+      <div style="font-family:monospace;font-size:1.3rem;font-weight:800;letter-spacing:.05em;background:#f6f6f6;padding:.6rem 1rem;border-radius:8px;display:inline-block;">${company?.join_code || '—'}</div>
+      <p style="font-size:.78rem;color:#888;margin-top:.5rem;">أعطِ هذا الكود لأي موظف تبي ينضم لحساب شركتك — يدخله وقت التسجيل، وإدارة إتقان تعتمد حسابه بعدين.</p>
+    </div>
+    <div id="teamList"></div>
+  `;
+
+  const el = document.getElementById('teamList');
+  if (!team || !team.length) { el.innerHTML = `<div class="card"><div class="req-meta">لا يوجد أعضاء فريق مسجّلين بعد.</div></div>`; return; }
+
+  el.innerHTML = team.map(m => `
+    <div class="card">
+      <div class="req-row">
+        <div><div class="req-title">${m.full_name}${m.id === CURRENT_USER.id ? ' (أنت)' : ''}</div><div class="req-meta">${m.client_type === 'owner' ? 'مالك الشركة' : (m.department || 'بانتظار تحديد القسم')}</div></div>
+        <span class="badge ${m.approval_status === 'approved' ? 'b-active' : 'b-pending'}">${m.approval_status === 'approved' ? '✓ فعّال' : '⏳ بانتظار اعتماد إتقان'}</span>
+      </div>
+    </div>
+  `).join('');
 }
 
 async function renderClientPayments() {
@@ -782,7 +880,7 @@ async function renderClientPayments() {
 async function renderClientServicePage(serviceId) {
   const service = ALL_SERVICES.find(s => s.id === serviceId);
   const companyActive = CURRENT_COMPANY ? CURRENT_COMPANY.is_active : false;
-  const { data: allReqs } = await sb.from('requests').select('*, services(name_ar)').eq('client_id', CURRENT_USER.id).eq('service_id', serviceId).order('created_at', { ascending: false });
+  const { data: allReqs } = await applyRequestScope(sb.from('requests').select('*, services(name_ar)').eq('service_id', serviceId).order('created_at', { ascending: false }));
   const requests = (allReqs || []).filter(r => r.status !== 'completed');
   const quickTitles = QUICK_TITLES[service?.key] || [];
 
@@ -1002,7 +1100,7 @@ async function renderClientProfile() {
 // CLIENT: DOCUMENTS (all attachments across all requests)
 // =====================================================================
 async function renderClientDocuments() {
-  const { data: requests } = await sb.from('requests').select('id, title, services(name_ar)').eq('client_id', CURRENT_USER.id);
+  const { data: requests } = await applyRequestScope(sb.from('requests').select('id, title, services(name_ar)'));
   app.innerHTML = `<div class="section-title">كل مستنداتي</div><div id="docsList"></div>`;
   const el = document.getElementById('docsList');
   if (!requests || requests.length === 0) { el.innerHTML = emptyState('📁', 'لا توجد مستندات بعد', ''); return; }
@@ -1028,7 +1126,7 @@ async function renderClientDocuments() {
 // CLIENT: ARCHIVE (completed requests)
 // =====================================================================
 async function renderClientArchive() {
-  const { data: requests } = await sb.from('requests').select('*, services(name_ar)').eq('client_id', CURRENT_USER.id).eq('status', 'completed').order('created_at', { ascending: false });
+  const { data: requests } = await applyRequestScope(sb.from('requests').select('*, services(name_ar)').eq('status', 'completed').order('created_at', { ascending: false }));
   app.innerHTML = `<div class="section-title">الأرشيف — الطلبات المكتملة</div><div id="archiveList"></div>`;
   const el = document.getElementById('archiveList');
   if (!requests || requests.length === 0) { el.innerHTML = emptyState('🗄️', 'لا توجد طلبات مكتملة بعد', 'الطلبات المكتملة تنتقل هنا تلقائياً'); return; }
@@ -1488,6 +1586,50 @@ async function renderAdminDrafts() {
 }
 
 const CRED_CATEGORIES = { government: 'منصة حكومية', social_media: 'حساب سوشيال ميديا', other: 'أخرى' };
+
+async function renderAdminApprovals() {
+  const { data: pending, error } = await sb.from('profiles').select('*, companies(name)').eq('approval_status', 'pending').order('created_at', { ascending: false });
+  app.innerHTML = `<div class="section-title">✅ طلبات الاعتماد المعلّقة</div><div id="approvalsList"></div>`;
+  const el = document.getElementById('approvalsList');
+  if (error) { el.innerHTML = `<div class="card"><div class="msg err">${error.message}</div></div>`; return; }
+  if (!pending || !pending.length) { el.innerHTML = `<div class="card"><div class="req-meta">لا توجد طلبات معلّقة حالياً. ✓</div></div>`; return; }
+
+  const roleLabelAr = { staff: 'موظف إتقان', client: 'موظف شركة' };
+
+  el.innerHTML = pending.map(p => `
+    <div class="card">
+      <div class="req-row">
+        <div>
+          <div class="req-title">${p.full_name}</div>
+          <div class="req-meta">${p.email || ''} · ${roleLabelAr[p.role] || p.role}${p.department ? ' — ' + p.department : ''}${p.companies?.name ? ' · الشركة: ' + p.companies.name : ''}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:.5rem;margin-top:.6rem;flex-wrap:wrap;">
+        <button class="btn btn-g btn-sm" data-approve="${p.id}" data-role="${p.role}">✅ قبول وتفعيل</button>
+        <button class="btn btn-o btn-sm" data-reject="${p.id}" data-role="${p.role}">🚫 رفض</button>
+      </div>
+    </div>
+  `).join('');
+
+  el.querySelectorAll('[data-approve]').forEach(btn => btn.addEventListener('click', async () => {
+    const id = btn.dataset.approve;
+    if (!confirm('تأكيد اعتماد وتفعيل هذا الحساب؟')) return;
+    const staffType = btn.dataset.role === 'staff' ? prompt('نوع الموظف: اكتب "internal" (داخلي إتقان) أو "external" (متعاقد)', 'internal') : null;
+    const payload = { approval_status: 'approved' };
+    if (staffType) payload.staff_type = staffType;
+    await sb.from('profiles').update(payload).eq('id', id);
+    await sb.from('audit_log').insert({ entity_type: 'profiles', entity_id: id, action: 'account_approved', actor_id: CURRENT_USER.id, actor_role: 'admin', details: {} });
+    renderAdminApprovals();
+  }));
+
+  el.querySelectorAll('[data-reject]').forEach(btn => btn.addEventListener('click', async () => {
+    const id = btn.dataset.reject;
+    if (!confirm('تأكيد رفض هذا الطلب؟ الحساب يرجع "عميل" عادي بدون صلاحيات خاصة.')) return;
+    await sb.from('profiles').update({ approval_status: 'rejected', role: 'client', client_type: null, department: null, company_id: null }).eq('id', id);
+    await sb.from('audit_log').insert({ entity_type: 'profiles', entity_id: id, action: 'account_rejected', actor_id: CURRENT_USER.id, actor_role: 'admin', details: {} });
+    renderAdminApprovals();
+  }));
+}
 
 async function renderAdminCredentials() {
   const { data: creds, error } = await sb.rpc('list_credentials');
