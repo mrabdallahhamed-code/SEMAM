@@ -1889,9 +1889,16 @@ async function loadPayments(companyId) {
     return `
     <div class="card" style="${isLate ? 'background:#FCECEA;border-color:#e5a5a5;' : ''}">
       <div class="req-row">
-        <div><div class="req-title">${p.label} ${p.payment_type === 'monthly' ? '<span class="badge" style="background:#eef;color:#33a;">🔁 شهرية</span>' : ''}</div>
-          <div class="req-meta">${p.amount ? Number(p.amount).toLocaleString('ar-SA') + ' ر.س' : ''} · أُنشئت ${fmtDate(p.created_at)}${p.due_date ? ' · الاستحقاق: ' + fmtDate(p.due_date) : ''}</div>
+        <div style="flex:1;">
+          <div class="req-title" id="pay-title-${p.id}">${p.label} ${p.payment_type === 'monthly' ? '<span class="badge" style="background:#eef;color:#33a;">🔁 شهرية</span>' : ''}</div>
+          <div class="req-meta" id="pay-meta-${p.id}">${p.amount ? Number(p.amount).toLocaleString('ar-SA') + ' ر.س' : '<span style="color:#a11;">⚠ المبلغ غير محدد بعد</span>'} · أُنشئت ${fmtDate(p.created_at)}${p.due_date ? ' · الاستحقاق: ' + fmtDate(p.due_date) : ''}</div>
         </div>
+        <button class="btn btn-o btn-sm" data-edit-pay="${p.id}" style="padding:.3rem .7rem;">✏️ تعديل</button>
+      </div>
+      <div id="pay-edit-form-${p.id}" style="display:none;margin-top:.6rem;">
+        <label>الوصف</label><input id="pay-edit-label-${p.id}" value="${p.label}">
+        <label>المبلغ (ر.س)</label><input id="pay-edit-amount-${p.id}" type="number" value="${p.amount || ''}">
+        <button class="btn btn-g btn-sm" data-save-pay="${p.id}" style="margin-top:.4rem;">حفظ ←</button>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:.5rem;">
         ${isLate ? `<span class="badge" style="background:#e5a5a5;color:#7a1f1f;">⚠ متأخرة عن الاستحقاق</span>` : ''}
@@ -1903,6 +1910,21 @@ async function loadPayments(companyId) {
       ${p.client_confirmed && !p.receipt_file_path ? `<div style="font-size:.78rem;color:#a11;margin-top:.4rem;">العميل أكّد بدون رفع صورة تحويل — راجعه قبل التأكيد.</div>` : ''}
     </div>
   `; }).join('');
+
+  el.querySelectorAll('[data-edit-pay]').forEach(btn => btn.addEventListener('click', () => {
+    const form = document.getElementById(`pay-edit-form-${btn.dataset.editPay}`);
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+  }));
+
+  el.querySelectorAll('[data-save-pay]').forEach(btn => btn.addEventListener('click', async () => {
+    const id = btn.dataset.savePay;
+    const label = document.getElementById(`pay-edit-label-${id}`).value.trim();
+    const amount = parseFloat(document.getElementById(`pay-edit-amount-${id}`).value) || null;
+    if (!label) { alert('أدخل الوصف'); return; }
+    const { error } = await sb.from('service_payments').update({ label, amount }).eq('id', id);
+    if (error) { alert(error.message); return; }
+    loadPayments(companyId);
+  }));
 
   el.querySelectorAll('[data-view-receipt]').forEach(a => a.addEventListener('click', async (e) => {
     e.preventDefault();
