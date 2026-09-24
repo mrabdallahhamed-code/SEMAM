@@ -363,6 +363,7 @@ function renderSidebar() {
   if (CURRENT_PROFILE.role === 'client') {
     html += `<div class="sb-item" data-view="my-requests">📋 طلباتي</div>`;
     html += `<div class="sb-item" data-view="my-reminders">📅 مواعيدي</div>`;
+    html += `<div class="sb-item" data-view="my-payments">💰 فواتيري</div>`;
     html += `<div class="sb-sect">خدماتنا</div>`;
     ALL_SERVICES.forEach(s => { html += `<div class="sb-item" data-view="service:${s.id}">${s.name_ar}</div>`; });
     html += `<div class="sb-sect">حسابي</div>`;
@@ -429,6 +430,7 @@ function renderContent() {
     if (currentView === 'dashboard') renderClientDashboard();
     else if (currentView === 'my-requests') renderClientAllRequests();
     else if (currentView === 'my-reminders') renderClientReminders();
+    else if (currentView === 'my-payments') renderClientPayments();
     else if (currentView.startsWith('service:')) renderClientServicePage(currentView.split(':')[1]);
     else if (currentView === 'profile') renderClientProfile();
     else if (currentView === 'documents') renderClientDocuments();
@@ -478,18 +480,34 @@ function setupRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'request_attachments' }, debounced)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'companies' }, debounced)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'compliance_reminders' }, debounced)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'service_payments' }, debounced)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'request_inquiries' }, debounced)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, loadNotifications)
     .subscribe();
 }
 
-async function attachmentsHtml(requestId) {
+async function attachmentsHtml(requestId, allowDelete) {
   const { data: atts } = await sb.from('request_attachments').select('*').eq('request_id', requestId);
   if (!atts || atts.length === 0) return '';
   const links = await Promise.all(atts.map(async a => {
     const { data } = await sb.storage.from('client-uploads').createSignedUrl(a.file_path, 3600);
-    return `<a class="attach-link" href="${data?.signedUrl || '#'}" target="_blank">📎 ${a.file_name}</a>`;
+    const delBtn = allowDelete ? ` <button data-del-attach="${a.id}" data-del-path="${a.file_path}" title="حذف المرفق" style="border:none;background:none;color:#b91c1c;cursor:pointer;font-size:.85rem;">✕</button>` : '';
+    return `<span style="display:inline-flex;align-items:center;gap:2px;"><a class="attach-link" href="${data?.signedUrl || '#'}" target="_blank">📎 ${a.file_name}</a>${delBtn}</span>`;
   }));
   return links.join('');
+}
+
+async function deleteAttachment(attachId, filePath) {
+  if (!confirm('تأكيد حذف هذا المرفق نهائياً؟')) return;
+  await sb.storage.from('client-uploads').remove([filePath]);
+  await sb.from('request_attachments').delete().eq('id', attachId);
+}
+
+function wireAttachDeleteButtons(container) {
+  container.querySelectorAll('[data-del-attach]').forEach(btn => btn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    await deleteAttachment(btn.dataset.delAttach, btn.dataset.delPath);
+  }));
 }
 
 function timestampsHtml(r) {
@@ -690,6 +708,35 @@ async function renderClientReminders() {
   });
 }
 
+async function renderClientPayments() {
+  const companyId = CURRENT_PROFILE.company_id;
+  if (!companyId) { app.innerHTML = emptyState('💰', 'ما عندك منشأة مرتبطة بعد', ''); return; }
+
+  const { data: payments, error } = await sb.from('service_payments').select('*').eq('company_id', companyId).order('created_at', { ascending: false });
+  app.innerHTML = `<div class="section-title">💰 فواتيري ودفعاتي</div><div id="clientPayList"></div>`;
+  const el = document.getElementById('clientPayList');
+
+  if (error) { el.innerHTML = `<div class="card"><div class="msg err">${error.message}</div></div>`; return; }
+  if (!payments || !payments.length) { el.innerHTML = emptyState('💰', 'لا توجد دفعات مسجّلة حالياً', ''); return; }
+
+  el.innerHTML = payments.map(p => `
+    <div class="card">
+      <div class="req-row">
+        <div><div class="req-title">${p.label}</div><div class="req-meta">${p.amount ? Number(p.amount).toLocaleString('ar-SA') + ' ر.س' : ''} · ${fmtDate(p.created_at)}</div></div>
+        ${p.admin_confirmed ? `<span class="badge b-active">✓ مؤكّدة</span>` : p.client_confirmed ? `<span class="badge b-pending">⏳ بانتظار المراجعة</span>` : `<span class="badge b-pending">⚠️ بانتظار تأكيدك</span>`}
+      </div>
+      ${!p.client_confirmed ? `<button class="btn btn-g btn-sm" data-client-confirm="${p.id}" style="margin-top:.5rem;">✅ أكّد إنك سدّدت هذي الدفعة</button>` : ''}
+    </div>
+  `).join('');
+
+  el.querySelectorAll('[data-client-confirm]').forEach(btn => btn.addEventListener('click', async () => {
+    if (!confirm('تأكّد إنك فعلاً سدّدت هذا المبلغ قبل التأكيد.')) return;
+    const id = btn.dataset.clientConfirm;
+    await sb.from('service_payments').update({ client_confirmed: true, client_confirmed_at: new Date().toISOString() }).eq('id', id);
+    renderClientPayments();
+  }));
+}
+
 
 async function renderClientServicePage(serviceId) {
   const service = ALL_SERVICES.find(s => s.id === serviceId);
@@ -756,7 +803,7 @@ async function renderClientServicePage(serviceId) {
     const { data: drafts } = await sb.from('drafts').select('*').eq('request_id', r.id).order('version', { ascending: false });
     const visibleDraft = (drafts || [])[0];
     const { data: openTimer } = await sb.from('task_timer_logs').select('*').eq('request_id', r.id).is('ended_at', null).maybeSingle();
-    const attachHtml = await attachmentsHtml(r.id);
+    const attachHtml = await attachmentsHtml(r.id, true);
     const finalHtml = await finalFileHtml(r);
     const inqHtml = await inquiriesHtml(r.id, 'client');
     const draftLinkHtml = visibleDraft ? await draftFileLinkHtml(visibleDraft) : '';
@@ -767,7 +814,7 @@ async function renderClientServicePage(serviceId) {
     card.innerHTML = `
       <div class="req-row">
         <div><div class="req-title">${r.title} ${urgentChip(r.priority)}</div><div class="req-meta">${fmtDate(r.created_at)}</div></div>
-        <div style="display:flex;gap:.5rem;align-items:center">${openTimer ? `<span class="live-pill"><span class="live-dot"></span>الموظف يعمل الآن</span>` : ''}${statusBadge(r.status)}</div>
+        <div style="display:flex;gap:.5rem;align-items:center">${openTimer ? `<span class="live-pill"><span class="live-dot"></span>الموظف يعمل الآن</span>` : ''}${statusBadge(r.status)}${r.status === 'new' ? `<button data-cancel-req="${r.id}" class="btn btn-o btn-sm" style="padding:.3rem .7rem;">إلغاء الطلب</button>` : ''}</div>
       </div>
       ${progressBarHtml(r.status)}
       ${timestampsHtml(r)}
@@ -792,7 +839,16 @@ async function renderClientServicePage(serviceId) {
     `;
     listEl.appendChild(card);
     wireInquiryAnswerButtons(card, () => renderClientServicePage(serviceId));
+    wireAttachDeleteButtons(card);
   }
+  listEl.querySelectorAll('[data-cancel-req]').forEach(btn => btn.addEventListener('click', async () => {
+    if (!confirm('تأكيد إلغاء هذا الطلب نهائياً؟ ما يقدر أحد يرجّعه بعدين.')) return;
+    const reqId = btn.dataset.cancelReq;
+    await sb.from('request_attachments').delete().eq('request_id', reqId);
+    const { error } = await sb.from('requests').delete().eq('id', reqId);
+    if (error) { alert('تعذر الإلغاء: ' + error.message); return; }
+    renderClientServicePage(serviceId);
+  }));
   listEl.querySelectorAll('[data-approve]').forEach(btn => btn.addEventListener('click', async () => {
     const { error } = await sb.from('drafts').update({ status: 'approved_by_client' }).eq('id', btn.dataset.approve);
     if (error) { alert('تعذر الاعتماد: ' + error.message); return; }
@@ -1657,6 +1713,17 @@ async function renderAdminCompanyDetail(companyId) {
       <div class="stat"><div class="n">${counts.pending_client_approval}</div><div class="l">بانتظار اعتماد العميل</div></div>
       <div class="stat"><div class="n">${counts.completed}</div><div class="l">مكتملة</div></div>
     </div>
+    <div class="section-title">💰 الفواتير والدفعات</div>
+    <div id="paymentsList"></div>
+    <div class="card">
+      <div style="display:grid;gap:.6rem">
+        <div><label>وصف الخدمة/الدفعة</label><input id="new-pay-label" placeholder="مثال: محاسبة شهر سبتمبر"></div>
+        <div><label>المبلغ (ر.س)</label><input id="new-pay-amount" type="number"></div>
+        <button class="btn btn-g btn-sm" id="addPaymentBtn">إضافة دفعة ←</button>
+      </div>
+      <div id="new-pay-msg"></div>
+    </div>
+
     <div class="section-title">📅 المواعيد والتذكيرات</div>
     <div id="remindersList"></div>
     <div class="card">
@@ -1677,6 +1744,8 @@ async function renderAdminCompanyDetail(companyId) {
   `;
 
   loadReminders(companyId);
+  loadPayments(companyId);
+  document.getElementById("addPaymentBtn").addEventListener("click", () => addPayment(companyId));
   loadReminderSuggestions();
 
   document.getElementById('addReminderBtn').addEventListener('click', async () => {
@@ -1723,6 +1792,49 @@ async function loadReminderSuggestions() {
       document.getElementById('new-rem-recur').value = match.default_recurrence;
     }
   });
+}
+
+async function loadPayments(companyId) {
+  const { data: payments, error } = await sb.from('service_payments').select('*').eq('company_id', companyId).order('created_at', { ascending: false });
+  const el = document.getElementById('paymentsList');
+  if (error) { el.innerHTML = `<div class="card"><div class="msg err">${error.message}</div></div>`; return; }
+  if (!payments || !payments.length) { el.innerHTML = `<div class="card"><div class="req-meta">لا توجد دفعات مسجّلة بعد.</div></div>`; return; }
+
+  el.innerHTML = payments.map(p => `
+    <div class="card">
+      <div class="req-row">
+        <div><div class="req-title">${p.label}</div><div class="req-meta">${p.amount ? Number(p.amount).toLocaleString('ar-SA') + ' ر.س' : ''} · ${fmtDate(p.created_at)}</div></div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:.5rem;">
+        <span class="badge ${p.client_confirmed ? 'b-active' : 'b-pending'}">${p.client_confirmed ? '✓ العميل أكّد الدفع' : '⏳ بانتظار تأكيد العميل'}</span>
+        <span class="badge ${p.admin_confirmed ? 'b-active' : 'b-pending'}">${p.admin_confirmed ? '✓ تمت المراجعة' : '⚠ بانتظار مراجعتك'}</span>
+      </div>
+      ${p.client_confirmed && !p.admin_confirmed ? `<button class="btn btn-g btn-sm" data-confirm-pay="${p.id}" style="margin-top:.5rem;">✅ تأكيد استلام هذي الدفعة</button>` : ''}
+    </div>
+  `).join('');
+
+  el.querySelectorAll('[data-confirm-pay]').forEach(btn => btn.addEventListener('click', async () => {
+    if (!confirm('تأكّد إنك فعلاً استلمت/تحققت من هذي الدفعة؟')) return;
+    const id = btn.dataset.confirmPay;
+    await sb.from('service_payments').update({ admin_confirmed: true, admin_confirmed_at: new Date().toISOString() }).eq('id', id);
+    await sb.from('audit_log').insert({ entity_type: 'service_payments', entity_id: id, action: 'payment_verified', actor_id: CURRENT_USER.id, actor_role: CURRENT_PROFILE.role, details: {} });
+    loadPayments(companyId);
+  }));
+}
+
+async function addPayment(companyId) {
+  const label = document.getElementById('new-pay-label').value.trim();
+  const amount = parseFloat(document.getElementById('new-pay-amount').value) || null;
+  const msg = document.getElementById('new-pay-msg');
+  if (!label) { msg.innerHTML = `<div class="msg err">أدخل وصف الدفعة</div>`; return; }
+
+  const { error } = await sb.from('service_payments').insert({ company_id: companyId, label, amount, created_by: CURRENT_USER.id });
+  msg.innerHTML = error ? `<div class="msg err">${error.message}</div>` : `<div class="msg ok">تمت الإضافة.</div>`;
+  if (!error) {
+    document.getElementById('new-pay-label').value = '';
+    document.getElementById('new-pay-amount').value = '';
+    loadPayments(companyId);
+  }
 }
 
 async function loadReminders(companyId) {
