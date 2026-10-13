@@ -1650,7 +1650,7 @@ async function renderAdminCredentials() {
           <option value="other">أخرى</option>
         </select></div>
         <div><label>اسم المستخدم / البريد</label><input id="cred-username" placeholder=""></div>
-        <div><label>كلمة السر</label><input id="cred-password" type="password" placeholder="اكتبها هنا، بتُشفّر تلقائياً وقت الحفظ"></div>
+        <div><label>كلمة السر</label><div style="position:relative;"><input id="cred-password" type="password" autocomplete="new-password" placeholder="اكتبها هنا، بتُشفّر تلقائياً وقت الحفظ" style="padding-left:2.6rem;"><button type="button" id="toggleCredPw" title="إظهار/إخفاء" style="position:absolute;left:.5rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1.1rem;">👁️</button></div></div>
         <div><label>ملاحظات (اختياري)</label><input id="cred-notes" placeholder=""></div>
         <button class="btn btn-g btn-sm" id="saveCredBtn">حفظ ←</button>
       </div>
@@ -1701,6 +1701,13 @@ async function renderAdminCredentials() {
       document.getElementById('cred-form').scrollIntoView({ behavior: 'smooth' });
     }));
   }
+
+  document.getElementById('toggleCredPw').addEventListener('click', () => {
+    const inp = document.getElementById('cred-password');
+    const show = inp.type === 'password';
+    inp.type = show ? 'text' : 'password';
+    document.getElementById('toggleCredPw').textContent = show ? '🙈' : '👁️';
+  });
 
   document.getElementById('saveCredBtn').addEventListener('click', async () => {
     const id = document.getElementById('cred-id').value || null;
