@@ -428,6 +428,7 @@ function renderSidebar() {
     html += `<div class="sb-item" data-view="companies">الشركات والمواعيد</div>`;
   } else if (CURRENT_PROFILE.role === 'admin') {
     html += `<div class="sb-item" data-view="requests">كل الطلبات</div>`;
+    html += `<div class="sb-item" data-view="tasks">📋 مهامي</div>`;
     html += `<div class="sb-item" data-view="drafts">تدقيق المسودات</div>`;
     html += `<div class="sb-item" data-view="companies">الشركات</div>`;
     html += `<div class="sb-item" data-view="reminder-templates">📅 قوالب التذكيرات</div>`;
@@ -499,6 +500,7 @@ function renderContent() {
   } else if (CURRENT_PROFILE.role === 'admin') {
     if (currentView === 'dashboard') renderAdminDashboard();
     else if (currentView === 'requests') renderAdminRequests();
+    else if (currentView === 'tasks') renderStaffTasks();
     else if (currentView === 'drafts') renderAdminDrafts();
     else if (currentView === 'companies') renderAdminCompanies();
     else if (currentView === 'team') renderAdminTeam();
@@ -1508,7 +1510,7 @@ async function renderAdminDashboard() {
     sb.from('app_settings').select('value').eq('key', 'auto_assign').maybeSingle(),
   ]);
   const attention = [
-    { n: (unassignedReqs||[]).length, label: 'طلبات جديدة بدون إسناد', view: 'requests', title: 'كل الطلبات' },
+    { n: (unassignedReqs||[]).length, label: 'طلبات بلا موظف مختص — أسندها أو استلمها بنفسك', view: 'requests', title: 'كل الطلبات' },
     { n: (payAwaiting||[]).length, label: 'دفعات بانتظار تأكيدك', view: 'companies', title: 'الشركات' },
     { n: (pendingAccts||[]).length, label: 'حسابات بانتظار الاعتماد', view: 'approvals', title: 'طلبات الاعتماد' },
     { n: (inactiveCos||[]).length, label: 'شركات بانتظار التفعيل', view: 'companies', title: 'الشركات' },
@@ -1520,7 +1522,7 @@ async function renderAdminDashboard() {
     <div class="card" style="border:1.5px solid ${attention.length ? '#e0a96d' : '#bfe0cf'};">
       <div class="req-title" style="margin-bottom:.5rem;">${attention.length ? '🔔 تحتاج تدخلك' : '✅ لا شيء يحتاج تدخلك الآن'}</div>
       ${attention.map(a => `<div class="req-row" style="padding:.35rem 0;"><span><b>${a.n}</b> ${a.label}</span><button class="btn btn-o btn-sm" data-att="${a.view}" data-att-title="${a.title}">افتح ←</button></div>`).join('')}
-      ${CURRENT_PROFILE.is_super ? `<label style="display:flex;gap:.5rem;align-items:center;margin-top:.7rem;font-size:.85rem;"><input type="checkbox" id="autoAssignToggle" style="width:auto;margin:0;" ${autoOn ? 'checked' : ''}> الإسناد التلقائي للطلبات الجديدة (حسب التخصص وأقل حِمل)</label>` : `<div class="req-meta" style="margin-top:.5rem;">الإسناد التلقائي: ${autoOn ? 'مُفعّل' : 'متوقف'}</div>`}
+      ${CURRENT_PROFILE.is_super ? `<label style="display:flex;gap:.5rem;align-items:center;margin-top:.7rem;font-size:.85rem;"><input type="checkbox" id="autoAssignToggle" style="width:auto;margin:0;" ${autoOn ? 'checked' : ''}> الإسناد التلقائي للطلبات الجديدة (للموظف المختص بالخدمة، وأقلهم حِملًا)</label>` : `<div class="req-meta" style="margin-top:.5rem;">الإسناد التلقائي: ${autoOn ? 'مُفعّل' : 'متوقف'}</div>`}
     </div>
     ${pendingCount > 0 ? `
       <div class="alert-banner">
@@ -1629,7 +1631,8 @@ async function renderAdminRequests() {
         ${needsAssignment ? `
           <select id="assign-${r.id}" style="max-width:280px"><option value="">إسناد إلى...</option>${(staffList||[]).map(s=>`<option value="${s.id}">${staffSnapshot[s.id]}</option>`).join('')}</select>
           <input id="expected-hours-${r.id}" type="number" min="0" step="0.5" placeholder="الوقت المتوقع (ساعة)" style="max-width:170px">
-          <button class="btn btn-g btn-sm" data-assign-btn="${r.id}">إسناد ←</button>` : ''}
+          <button class="btn btn-g btn-sm" data-assign-btn="${r.id}">إسناد ←</button>
+          <button class="btn btn-o btn-sm" data-self-assign="${r.id}">🙋 استلمه بنفسي</button>` : ''}
         ${r.status === 'completed' ? `
           <select data-quality-select="${r.id}" style="max-width:170px">
             <option value="">تقييم جودة العمل...</option>
@@ -1647,6 +1650,15 @@ async function renderAdminRequests() {
   el.querySelectorAll('[data-priority-select]').forEach(sel => sel.addEventListener('change', async () => {
     const ok = await runOrAlert(sb.from('requests').update({ priority: sel.value }).eq('id', sel.dataset.prioritySelect), 'تعذر تحديث الأولوية');
     if (ok) renderAdminRequests();
+  }));
+  el.querySelectorAll('[data-self-assign]').forEach(btn => btn.addEventListener('click', async () => {
+    const reqId = btn.dataset.selfAssign;
+    if (!confirm('استلام هذا الطلب لنفسك؟ سيظهر في "مهامي".')) return;
+    const expectedHoursVal = document.getElementById(`expected-hours-${reqId}`)?.value;
+    const payload = { assigned_staff_id: CURRENT_USER.id, status: 'assigned' };
+    if (expectedHoursVal) payload.expected_hours = parseFloat(expectedHoursVal);
+    const ok = await runOrAlert(sb.from('requests').update(payload).eq('id', reqId), 'تعذر استلام الطلب');
+    if (ok) { await sb.from('audit_log').insert({ entity_type: 'requests', entity_id: reqId, action: 'admin_self_assigned', actor_id: CURRENT_USER.id, actor_role: 'admin', details: {} }); navigate('tasks', 'مهامي'); }
   }));
   el.querySelectorAll('[data-assign-btn]').forEach(btn => btn.addEventListener('click', async () => {
     const reqId = btn.dataset.assignBtn;
