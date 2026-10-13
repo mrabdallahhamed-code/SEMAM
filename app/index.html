@@ -193,6 +193,7 @@ const STATUS_LABELS = {
   pending_admin_review: ['بانتظار مراجعة المدير', 'b-review'], pending_client_approval: ['بانتظار اعتمادك', 'b-approval'],
   client_revision_requested: ['طلب تعديل', 'b-revision'], awaiting_final_file: ['بانتظار الملف النهائي', 'b-approval'],
   completed: ['مكتمل', 'b-done'],
+  pending_company_approval: ['بانتظار اعتماد مسؤول شركتك', 'b-review'], company_rejected: ['مرفوض من الشركة', 'b-revision'],
 };
 const PROGRESS_LABELS = ['تم الاستلام', 'قيد التنفيذ', 'بانتظار الاعتماد', 'مكتمل'];
 const QUICK_TITLES = {
@@ -244,7 +245,7 @@ async function init() {
   const { data: services } = await sb.from('services').select('*').eq('is_active', true);
   ALL_SERVICES = services || [];
 
-  document.getElementById('whoami').textContent = `${profile.full_name} · ${roleLabel(profile.role)}`;
+  document.getElementById('whoami').textContent = `${profile.full_name} · ${profile.is_super ? 'سوبر أدمن' : roleLabel(profile.role)}`;
   renderSidebar();
   loadNotifications();
   setupRealtime();
@@ -295,6 +296,7 @@ async function ensureCompanyLinked() {
   }
 }
 
+function isCompanyManager() { return CURRENT_PROFILE && CURRENT_PROFILE.role === 'client' && ['owner','company_admin'].includes(CURRENT_PROFILE.client_type); }
 function roleLabel(r) { return { client: 'عميل', staff: 'فريق العمل', admin: 'إدارة' }[r] || r; }
 function statusBadge(s) {
   const [label, cls] = STATUS_LABELS[s] || [s, 'b-new'];
@@ -413,7 +415,8 @@ function renderSidebar() {
     html += `<div class="sb-item" data-view="my-requests">📋 طلباتي</div>`;
     html += `<div class="sb-item" data-view="my-reminders">📅 مواعيدي</div>`;
     html += `<div class="sb-item" data-view="my-payments">💰 فواتيري</div>`;
-    if (CURRENT_PROFILE.client_type === 'owner') html += `<div class="sb-item" data-view="my-team">👥 فريقي</div>`;
+    if (isCompanyManager()) html += `<div class="sb-item" data-view="monitor">📡 المتابعة والاعتماد</div>`;
+    if (isCompanyManager()) html += `<div class="sb-item" data-view="my-team">👥 فريقي</div>`;
     html += `<div class="sb-sect">خدماتنا</div>`;
     ALL_SERVICES.forEach(s => { html += `<div class="sb-item" data-view="service:${s.id}">${s.name_ar}</div>`; });
     html += `<div class="sb-sect">حسابي</div>`;
@@ -431,7 +434,7 @@ function renderSidebar() {
     html += `<div class="sb-item" data-view="approvals">✅ طلبات الاعتماد</div>`;
     html += `<div class="sb-item" data-view="credentials">🔐 كلمات السر</div>`;
     html += `<div class="sb-item" data-view="team">الفريق</div>`;
-    html += `<div class="sb-item" data-view="audit">سجل التدقيق</div>`;
+    if (CURRENT_PROFILE.is_super) html += `<div class="sb-item" data-view="audit">سجل التدقيق</div>`;
   }
   nav.innerHTML = html;
   nav.querySelectorAll('.sb-item').forEach(el => el.addEventListener('click', () => navigate(el.dataset.view, el.textContent)));
@@ -483,6 +486,7 @@ function renderContent() {
     else if (currentView === 'my-reminders') renderClientReminders();
     else if (currentView === 'my-payments') renderClientPayments();
     else if (currentView === 'my-team') renderClientTeam();
+    else if (currentView === 'monitor') renderCompanyMonitor();
     else if (currentView.startsWith('service:')) renderClientServicePage(currentView.split(':')[1]);
     else if (currentView === 'profile') renderClientProfile();
     else if (currentView === 'documents') renderClientDocuments();
@@ -498,7 +502,7 @@ function renderContent() {
     else if (currentView === 'drafts') renderAdminDrafts();
     else if (currentView === 'companies') renderAdminCompanies();
     else if (currentView === 'team') renderAdminTeam();
-    else if (currentView === 'audit') renderAdminAuditLog();
+    else if (currentView === 'audit' && CURRENT_PROFILE.is_super) renderAdminAuditLog();
     else if (currentView === 'reminder-templates') renderAdminReminderTemplates();
     else if (currentView === 'credentials') renderAdminCredentials();
     else if (currentView === 'approvals') renderAdminApprovals();
@@ -512,7 +516,7 @@ function rerenderCurrentRole() { if (CURRENT_PROFILE) renderContent(); }
 async function applyRequestScope(baseQuery) {
   const companyId = CURRENT_PROFILE.company_id;
   if (!companyId) return baseQuery.eq('client_id', CURRENT_USER.id);
-  if (CURRENT_PROFILE.client_type === 'owner' || !CURRENT_PROFILE.department) {
+  if (isCompanyManager() || !CURRENT_PROFILE.department) {
     return baseQuery.eq('company_id', companyId);
   }
   // موظف: نحدد أولاً خدمات قسمه، وبعدين نفلتر (نفس القسم) أو (طلبه الشخصي)
@@ -550,6 +554,7 @@ function setupRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'compliance_reminders' }, debounced)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'service_payments' }, debounced)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'request_inquiries' }, debounced)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, debounced)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, loadNotifications)
     .subscribe();
 }
@@ -784,6 +789,72 @@ async function renderClientReminders() {
   });
 }
 
+async function renderCompanyMonitor() {
+  const { data, error } = await sb.rpc('company_monitor');
+  if (error || !data || data.error) {
+    app.innerHTML = `<div class="card"><div class="msg err">${escapeHtml((error && error.message) || (data && data.error) || 'تعذر تحميل المتابعة')}</div></div>`;
+    return;
+  }
+  const emps = data.employees || [], reqs = data.requests || [];
+  const pending = reqs.filter(r => r.status === 'pending_company_approval');
+  const open = reqs.filter(r => !['completed', 'company_rejected'].includes(r.status));
+  const done = reqs.filter(r => r.status === 'completed');
+  const typeLbl = e => e.client_type === 'owner' ? 'مالك' : (e.client_type === 'company_admin' ? 'أدمن الشركة' : (e.department || 'موظف'));
+
+  app.innerHTML = `
+    <div class="section-title">📡 المتابعة والاعتماد <span style="font-size:.7rem;color:#2e7d5b;font-weight:600;">● مباشر</span></div>
+    <div class="card" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:.8rem;text-align:center;">
+      <div><div style="font-size:1.6rem;font-weight:800;">${pending.length}</div><div class="req-meta">بانتظار اعتمادك</div></div>
+      <div><div style="font-size:1.6rem;font-weight:800;">${open.length}</div><div class="req-meta">طلبات جارية</div></div>
+      <div><div style="font-size:1.6rem;font-weight:800;">${done.length}</div><div class="req-meta">مكتملة</div></div>
+      <div><div style="font-size:1.6rem;font-weight:800;">${emps.filter(e => e.approval_status === 'approved').length}</div><div class="req-meta">أعضاء الفريق</div></div>
+    </div>
+    <div class="section-title" style="margin-top:1.2rem;">⏳ طلبات بانتظار اعتمادك</div>
+    <div id="mpPending"></div>
+    <div class="section-title" style="margin-top:1.2rem;">👥 الفريق والنشاط</div>
+    <div id="mpEmps"></div>
+    <div class="section-title" style="margin-top:1.2rem;">📋 آخر الطلبات</div>
+    <div id="mpReqs"></div>`;
+
+  document.getElementById('mpPending').innerHTML = pending.length ? pending.map(r => `
+    <div class="card">
+      <div class="req-title">${escapeHtml(r.title)}</div>
+      <div class="req-meta">${escapeHtml(r.client_name || '—')} · ${escapeHtml(r.service_name || '—')} · ${timeAgo(r.created_at)}</div>
+      <div style="display:flex;gap:.5rem;margin-top:.6rem;flex-wrap:wrap;">
+        <button class="btn btn-g btn-sm" data-cr-ok="${r.id}">✅ اعتماد وإرسال لإتقان</button>
+        <button class="btn btn-o btn-sm" data-cr-no="${r.id}">🚫 رفض</button>
+      </div>
+    </div>`).join('') : `<div class="card"><div class="req-meta">لا توجد طلبات بانتظار الاعتماد. ✓</div></div>`;
+
+  document.getElementById('mpEmps').innerHTML = emps.length ? emps.map(e => `
+    <div class="card">
+      <div class="req-row">
+        <div><div class="req-title">${escapeHtml(e.full_name)}</div>
+        <div class="req-meta">${escapeHtml(typeLbl(e))} · طلبات جارية: ${e.open_count} · الإجمالي: ${e.total_count} · آخر نشاط: ${e.last_activity ? timeAgo(e.last_activity) : '—'}</div></div>
+        <span class="badge ${e.approval_status === 'approved' ? 'b-active' : 'b-pending'}">${e.approval_status === 'approved' ? 'فعّال' : 'بانتظار الاعتماد'}</span>
+      </div>
+    </div>`).join('') : `<div class="card"><div class="req-meta">لا يوجد أعضاء.</div></div>`;
+
+  document.getElementById('mpReqs').innerHTML = reqs.length ? reqs.slice(0, 30).map(r => `
+    <div class="card">
+      <div class="req-row">
+        <div><div class="req-title">${escapeHtml(r.title)}</div>
+        <div class="req-meta">${escapeHtml(r.client_name || '—')} · ${escapeHtml(r.service_name || '—')}${r.staff_name ? ' · المنفّذ: ' + escapeHtml(r.staff_name) : ''} · ${timeAgo(r.updated_at || r.created_at)}</div></div>
+        ${statusBadge(r.status)}
+      </div>
+    </div>`).join('') : `<div class="card"><div class="req-meta">لا توجد طلبات بعد.</div></div>`;
+
+  app.querySelectorAll('[data-cr-ok],[data-cr-no]').forEach(btn => btn.addEventListener('click', async () => {
+    const ok = btn.hasAttribute('data-cr-ok');
+    const id = btn.dataset.crOk || btn.dataset.crNo;
+    if (!confirm(ok ? 'اعتماد الطلب وإرساله لإتقان للتنفيذ؟' : 'رفض هذا الطلب؟')) return;
+    btn.disabled = true;
+    const { data: res, error: e2 } = await sb.rpc('review_company_request', { p_id: id, p_approve: ok });
+    if (e2 || (res && res.error)) { alert((e2 && e2.message) || res.error); btn.disabled = false; return; }
+    renderCompanyMonitor();
+  }));
+}
+
 async function renderClientTeam() {
   const companyId = CURRENT_PROFILE.company_id;
   if (!companyId) { app.innerHTML = emptyState('👥', 'ما عندك منشأة مرتبطة بعد', ''); return; }
@@ -796,7 +867,7 @@ async function renderClientTeam() {
     <div class="card">
       <div class="req-title" style="margin-bottom:.4rem;">كود انضمام شركتك</div>
       <div style="font-family:monospace;font-size:1.3rem;font-weight:800;letter-spacing:.05em;background:#f6f6f6;padding:.6rem 1rem;border-radius:8px;display:inline-block;">${company?.join_code || '—'}</div>
-      <p style="font-size:.78rem;color:#888;margin-top:.5rem;">أعطِ هذا الكود لأي موظف تبي ينضم لحساب شركتك — يدخله وقت التسجيل، وإدارة إتقان تعتمد حسابه بعدين.</p>
+      <p style="font-size:.78rem;color:#888;margin-top:.5rem;">أعطِ هذا الكود لأي موظف تبي ينضم لحساب شركتك — يدخله وقت التسجيل، وأنت (أو أدمن شركتك) تعتمد حسابه من هنا.</p>
     </div>
     <div id="teamList"></div>
   `;
@@ -804,14 +875,37 @@ async function renderClientTeam() {
   const el = document.getElementById('teamList');
   if (!team || !team.length) { el.innerHTML = `<div class="card"><div class="req-meta">لا يوجد أعضاء فريق مسجّلين بعد.</div></div>`; return; }
 
+  const isOwner = CURRENT_PROFILE.client_type === 'owner';
+  const typeLabel = m => m.client_type === 'owner' ? 'مالك الشركة' : (m.client_type === 'company_admin' ? 'أدمن الشركة' : (m.department || 'بانتظار تحديد القسم'));
   el.innerHTML = team.map(m => `
     <div class="card">
       <div class="req-row">
-        <div><div class="req-title">${m.full_name}${m.id === CURRENT_USER.id ? ' (أنت)' : ''}</div><div class="req-meta">${m.client_type === 'owner' ? 'مالك الشركة' : (m.department || 'بانتظار تحديد القسم')}</div></div>
-        <span class="badge ${m.approval_status === 'approved' ? 'b-active' : 'b-pending'}">${m.approval_status === 'approved' ? '✓ فعّال' : '⏳ بانتظار اعتماد إتقان'}</span>
+        <div><div class="req-title">${escapeHtml(m.full_name)}${m.id === CURRENT_USER.id ? ' (أنت)' : ''}</div><div class="req-meta">${escapeHtml(typeLabel(m))}${m.client_type === 'company_admin' && m.department ? ' · ' + escapeHtml(m.department) : ''}</div></div>
+        <span class="badge ${m.approval_status === 'approved' ? 'b-active' : (m.approval_status === 'rejected' ? 'b-revision' : 'b-pending')}">${m.approval_status === 'approved' ? '✓ فعّال' : (m.approval_status === 'rejected' ? '🚫 مرفوض' : '⏳ بانتظار الاعتماد')}</span>
       </div>
+      ${m.approval_status === 'pending' && m.id !== CURRENT_USER.id ? `<div style="display:flex;gap:.5rem;margin-top:.6rem;flex-wrap:wrap;">
+        <button class="btn btn-g btn-sm" data-tm-approve="${m.id}">✅ اعتماد</button>
+        <button class="btn btn-o btn-sm" data-tm-reject="${m.id}">🚫 رفض</button></div>` : ''}
+      ${isOwner && m.approval_status === 'approved' && m.client_type !== 'owner' ? `<div style="margin-top:.6rem;">
+        <button class="btn btn-o btn-sm" data-tm-admin="${m.id}" data-on="${m.client_type === 'company_admin' ? '0' : '1'}">${m.client_type === 'company_admin' ? 'إلغاء كونه أدمن الشركة' : '⭐ تعيينه أدمن للشركة (يعتمد الطلبات)'}</button></div>` : ''}
     </div>
   `).join('');
+
+  el.querySelectorAll('[data-tm-approve],[data-tm-reject]').forEach(btn => btn.addEventListener('click', async () => {
+    const approve = btn.hasAttribute('data-tm-approve');
+    const id = btn.dataset.tmApprove || btn.dataset.tmReject;
+    if (!confirm(approve ? 'اعتماد هذا الموظف وتفعيل حسابه؟' : 'رفض هذا الموظف؟')) return;
+    const { data, error } = await sb.rpc('review_team_member', { p_user: id, p_approve: approve });
+    if (error || (data && data.error)) { alert((error && error.message) || data.error); return; }
+    renderClientTeam();
+  }));
+  el.querySelectorAll('[data-tm-admin]').forEach(btn => btn.addEventListener('click', async () => {
+    const on = btn.dataset.on === '1';
+    if (!confirm(on ? 'تعيين هذا الموظف أدمن للشركة؟ سيعتمد الطلبات والموظفين ويتابع العمل.' : 'إلغاء صلاحيات أدمن الشركة عنه؟')) return;
+    const { data, error } = await sb.rpc('set_company_admin', { p_user: btn.dataset.tmAdmin, p_on: on });
+    if (error || (data && data.error)) { alert((error && error.message) || data.error); return; }
+    renderClientTeam();
+  }));
 }
 
 async function renderClientPayments() {
