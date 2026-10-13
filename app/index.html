@@ -1631,14 +1631,18 @@ async function renderAdminApprovals() {
   }));
 }
 
+function escapeHtml(v){return String(v==null?'':v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+
 async function renderAdminCredentials() {
   const { data: creds, error } = await sb.rpc('list_credentials');
+  const { data: credCompanies } = await sb.from('companies').select('id,name').order('name').limit(500);
   app.innerHTML = `<div class="section-title">🔐 كلمات السر المحفوظة</div>
     <p style="font-size:.82rem;color:#5A7A68;margin-bottom:1rem;">مشفّرة بالكامل — الأدمن بس يقدر يكشفها.</p>
     <div id="credsList"></div>
     <div class="card">
       <div style="display:grid;gap:.6rem" id="cred-form">
         <input type="hidden" id="cred-id" value="">
+        <div><label>الحساب تابع لأي شركة؟</label><select id="cred-company"><option value="">— بيانات إتقان الداخلية (غير مرتبطة بعميل) —</option>${(credCompanies||[]).map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}</select></div>
         <div><label>اسم المنصة</label><input id="cred-platform" placeholder="مثال: منصة قوى"></div>
         <div><label>التصنيف</label><select id="cred-category">
           <option value="government">منصة حكومية</option>
@@ -1663,13 +1667,13 @@ async function renderAdminCredentials() {
       card.className = 'card';
       card.innerHTML = `
         <div class="req-row">
-          <div><div class="req-title">${c.platform_name}</div><div class="req-meta">${CRED_CATEGORIES[c.category] || c.category} ${c.username ? '· ' + c.username : ''}</div></div>
+          <div><div class="req-title">${c.platform_name}</div><div class="req-meta">🏢 ${c.company_name ? escapeHtml(c.company_name) : 'إتقان (داخلي)'} · ${CRED_CATEGORIES[c.category] || c.category} ${c.username ? '· ' + c.username : ''}</div></div>
           <span class="badge b-active">🔒 محفوظة</span>
         </div>
         ${c.notes ? `<div class="req-meta" style="margin-top:.4rem;">${c.notes}</div>` : ''}
         <div style="display:flex;gap:.5rem;margin-top:.6rem;flex-wrap:wrap;">
           <button class="btn btn-o btn-sm" data-reveal="${c.id}">👁️ كشف كلمة السر</button>
-          <button class="btn btn-o btn-sm" data-edit-cred='${JSON.stringify({id:c.id,platform_name:c.platform_name,category:c.category,username:c.username,notes:c.notes})}'>تعديل البيانات</button>
+          <button class="btn btn-o btn-sm" data-edit-cred='${JSON.stringify({id:c.id,company_id:c.company_id,platform_name:c.platform_name,category:c.category,username:c.username,notes:c.notes})}'>تعديل البيانات</button>
         </div>
         <div id="reveal-${c.id}" style="margin-top:.5rem;"></div>
       `;
@@ -1687,6 +1691,7 @@ async function renderAdminCredentials() {
     el.querySelectorAll('[data-edit-cred]').forEach(btn => btn.addEventListener('click', () => {
       const d = JSON.parse(btn.dataset.editCred);
       document.getElementById('cred-id').value = d.id;
+      document.getElementById('cred-company').value = d.company_id || '';
       document.getElementById('cred-platform').value = d.platform_name || '';
       document.getElementById('cred-category').value = d.category || 'other';
       document.getElementById('cred-username').value = d.username || '';
@@ -1714,7 +1719,8 @@ async function renderAdminCredentials() {
 
     const { error: saveErr } = await sb.rpc('save_credential', {
       p_id: id, p_platform: platform, p_category: category, p_username: username,
-      p_password: password || null, p_notes: notes
+      p_password: password || null, p_notes: notes,
+      p_company_id: document.getElementById('cred-company').value || null
     });
     document.getElementById('cred-msg').innerHTML = saveErr ? `<div class="msg err">${saveErr.message}</div>` : `<div class="msg ok">تم الحفظ بأمان. ✓</div>`;
     if (!saveErr) setTimeout(() => renderAdminCredentials(), 800);
